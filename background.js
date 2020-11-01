@@ -47,18 +47,6 @@ const OpenLinksInSelection = async function(info, tab) {
     url: links,
   }))[0];
   console.log('Window details:', window);
-
-  var tab_loaded_count = 0;
-  chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-    if (info.url && links.indexOf(info.url) >= 0) {
-      tab_loaded_count += 1;
-      console.log(`Tab ${tab_loaded_count} out of ${links.length} finished loading.`);
-      if (tab_loaded_count === links.length) {
-	console.log('All tabs loaded. Focusing window.');
-	chrome.windows.update(window.id, {focused: true});
-      }
-    }
-  });  
 }
 
 chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
