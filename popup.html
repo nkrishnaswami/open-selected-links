@@ -5,8 +5,21 @@
     <script type="module" src="utils.js"></script>
     <script type="module" src="popup.js" defer></script>
     <style>
-      body { width: 100vw; }
+      body { width: 100%; }
+      .invisible { display: none; }
+      [placeholder]:empty::before {
+	  content: attr(placeholder);
+	  color: #555;
+      }
+      [placeholder]:empty:focus::before {
+	  content: "";
+      }
     </style>
   </head>
-  <body></body>
+  <body>
+    <div id="filter"
+	 placeholder="regexp filter"
+	 style="border: 1px solid black; width: 99vw"
+	 contenteditable></div>
+  </body>
 </html>
