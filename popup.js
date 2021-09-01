@@ -2,20 +2,13 @@ import {Promisify} from './promisify.js';
 import {GetLinksFromSelection, OpenLinksInNewWindow} from './utils.js';
 
 
-const TryToGetLinks = async function(tabId) {
-  if (tabId === undefined) {
-    var tab = await Promisify(chrome.tabs.query)({
+const GetCurrentTabId = async function() {
+  var tabs = await Promisify(chrome.tabs.query)({
       active: true,
       currentWindow: true
-    });
-    console.log('TryToGetLinks: Getting current tab:', tab);
-    if (!tab) {
-      return;
-    }
-    tabId = tab.id;
-  }
-  console.log('TryToGetLinks: Getting links for tabId', tabId);
-  return await GetLinksFromSelection(tabId);
+  });
+  console.log('GetCurrentTabId: Getting current tab:', tabs[0]);
+  return tabs[0].id;
 }
 
 const SubmitForm = async function(event) {
@@ -47,22 +40,24 @@ const RenderForm = function(links, labels) {
     const link = links[idx];
     const label = labels[idx];
     console.log('RenderForm: Link is', link, 'and label is', label);
-    
+    const rowElement = document.createElement('div');
+    rowElement.className = 'row';
+    formElement.appendChild(rowElement);
     const inputElement = document.createElement('input');
     inputElement.id = `input-${idx}`;
     inputElement.type = 'checkbox';
     inputElement.name = 'select-links';
     inputElement.value = link;
-    formElement.appendChild(inputElement);
+    rowElement.appendChild(inputElement);
     
     const labelElement = document.createElement('label');
     labelElement.for = inputElement.id;
     const anchorElement = document.createElement('a');
     anchorElement.href = link;
-    anchorElement.textContent = label || link;
+    anchorElement.title = link;
+    anchorElement.textContent = label.trim() || link;
     labelElement.appendChild(anchorElement);
-    formElement.appendChild(labelElement);
-    formElement.appendChild(document.createElement('br'));
+    rowElement.appendChild(labelElement);
   }
   const buttonElement = document.createElement('button');
   buttonElement.type = 'button';
@@ -72,9 +67,29 @@ const RenderForm = function(links, labels) {
   document.body.appendChild(formElement);
 }
 
+const SetupFilter = function(e) {
+  const filter = document.querySelector('#filter');
+  filter.addEventListener('input', () => {
+    console.log(`filter change event: value is ${filter.innerText}`);
+    for (const row of document.querySelectorAll('div.row')) {
+      console.log('Processing', row);
+      if (row.textContent.match(RegExp(filter.innerText, 'i'))) {
+        console.log('Showing');
+	row.classList.remove('invisible');
+      } else {
+        console.log('Hiding')
+	row.classList.add('invisible');
+      }
+    }
+  });
+}
+
 const Main = async function() {
-  const {links, labels} = await TryToGetLinks();
+  const tabId = await GetCurrentTabId();
+  console.log('Main: Getting links for tabId', tabId);
+  const {links, labels} = await GetLinksFromSelection(tabId);
   console.log('Main: Links are', links, 'and labels are', labels);
+  SetupFilter();
   RenderForm(links, labels);
 }
 
