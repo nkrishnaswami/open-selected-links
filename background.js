@@ -1,26 +1,48 @@
-import {GetLinksFromSelection, OpenLinksInNewWindow} from './utils.js';
+import {GetLinksFromSelection, MakeTabsForLinks} from './utils.js';
 
-const kMenuItemId = 'open-selected-links';
+const kCurWindowMenuItemId = 'open-selected-links-cur-window';
+const kNewWindowMenuItemId = 'open-selected-links-new-window';
 
-const OpenLinksInSelection = async function(info, tab) {
+const OpenLinksInSelectionInCurrentWindow = async function(info, tab) {
   console.log('Got menu click: ', info.menuItemId);
-  if (info.menuItemId !== kMenuItemId) {
+  if (info.menuItemId !== kCurWindowMenuItemId) {
     // Not our circus, not our monkeys.
     return;
   }
   const {links} = await GetLinksFromSelection(tab.id, info.frameId);
-  await OpenLinksInNewWindow(links)
+  await MakeTabsForLinks(links, chrome.windows.WINDOW_ID_CURRENT)
 }
 
-chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
-console.log('Added listener')
+const OpenLinksInSelectionInNewWindow = async function(info, tab) {
+  console.log('Got menu click: ', info.menuItemId);
+  if (info.menuItemId !== kNewWindowMenuItemId) {
+    // Not our circus, not our monkeys.
+    return;
+  }
+  const {links} = await GetLinksFromSelection(tab.id, info.frameId);
+  await MakeTabsForLinks(links, chrome.windows.WINDOW_ID_NONE)
+}
+
+chrome.contextMenus.onClicked.addListener(OpenLinksInSelectionInNewWindow);
+chrome.contextMenus.onClicked.addListener(OpenLinksInSelectionInCurrentWindow);
+console.log('Added listeners')
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: kMenuItemId,
+    id: kNewWindowMenuItemId,
     contexts: ["selection"],
     type: 'normal',
     title: 'Open all selected links in a new window',
     visible: true,
   }, ()=>{console.log('Added menu item')});
 });
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: kCurWindowMenuItemId,
+    contexts: ["selection"],
+    type: 'normal',
+    title: 'Open all selected links in the current window',
+    visible: true,
+  }, ()=>{console.log('Added menu item')});
+})

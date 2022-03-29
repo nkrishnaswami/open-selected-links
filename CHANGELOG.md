@@ -1,3 +1,6 @@
+# Version 1.4
+* Add options to open links in the same window,
+* Add button to toggle all visible (unfiltered) links in the popup.
 # Version 1.3
 * Allow case-insensitive, regular expression-based filtering on the links' text in the popup.
 # Version 1.2

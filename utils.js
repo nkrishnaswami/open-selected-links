@@ -14,16 +14,29 @@ export const GetLinksFromSelection = async function(tabId, frameId) {
   return scriptResults[0];
 }
 
-export const OpenLinksInNewWindow = async function(links) {
+export const MakeTabsForLinks = async function(links, windowId) {
   if (!links || links.length === 0) {
     console.log('No links in selection');
     return;
   }
-  console.log(`Creating window with ${links.length} tabs`);
-  const window = await Promisify(chrome.windows.create)({
-    focused: true,
-    setSelfAsOpener: true,
-    url: links,
-  });
-  console.log('Window details:', window);
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    console.log(`Creating window with ${links.length} tabs`);
+    const window = await Promisify(chrome.windows.create)({
+      focused: true,
+      setSelfAsOpener: true,
+      url: links,
+    });
+    console.log('Window details:', window);
+  } else {
+    console.log(`Creating ${links.length} tabs in window ${windowId}`);
+    for (const link of links) {
+      console.log(`Creating tab for ${link}`);
+      const tab = await Promisify(chrome.tabs.create)({
+	url: link,
+	windowId: windowId,
+	active: false,
+      });
+      console.log('Tab:', tab);
+    }
+  }
 }

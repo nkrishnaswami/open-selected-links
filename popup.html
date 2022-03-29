@@ -21,5 +21,18 @@
 	 placeholder="regexp filter"
 	 style="border: 1px solid black; width: 99vw"
 	 contenteditable></div>
+    <form name="SelectLinks">
+      <fieldset>
+	<button type="button" id="toggle-button">Toggle visible links</button>
+	<div id="target-window-ui">
+	  <label for="new-window-checkbox">Open links in new window:</label>
+	  <input id="new-window-checkbox" type="checkbox" checked>
+	</div>
+      </fieldset>
+      
+      Choose links to open:
+      <div id="select-links-div"></div>
+      <button type="button" id="open-button">Open</button>
+    </form>
   </body>
 </html>

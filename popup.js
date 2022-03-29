@@ -1,5 +1,5 @@
 import {Promisify} from './promisify.js';
-import {GetLinksFromSelection, OpenLinksInNewWindow} from './utils.js';
+import {GetLinksFromSelection, MakeTabsForLinks} from './utils.js';
 
 
 const GetCurrentTabId = async function() {
@@ -11,31 +11,26 @@ const GetCurrentTabId = async function() {
   return tabs[0].id;
 }
 
-const SubmitForm = async function(event) {
-  console.log('SubmitForm: Button pressed! Form is', event);
+const OpenLinks = async function(event) {
+  console.log('OpenLinks: Button pressed! Form is', event);
   const form = event.target.parent;
-  console.log('SubmitForm: Form:', form);
+  console.log('OpenLinks: Form:', form);
+  var windowId = document.querySelector('#new-window-checkbox').checked ?
+      chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT;
   const links = [];
-  const inputs = document.querySelectorAll('input:checked');
-  console.log('SubmitForm: Checked', inputs);
+  const inputs = document.querySelectorAll('input[name="select-links"]:checked');
+  console.log('OpenLinks: Checked', inputs);
   for (const input of inputs) {
     links.push(input.value);
   }
-  console.log('SubmitForm: Links:', links);
-  await OpenLinksInNewWindow(links);
+  console.log('OpenLinks: Links:', links);
+  await MakeTabsForLinks(links, windowId);
   window.close();
 }
 
-const RenderForm = function(links, labels) {
-  if (links == undefined || links.length == 0) {
-    debugger;
-    return;
-  }
-  const divElement = document.createElement('div');
-  divElement.textContent = 'Choose elements to open in a new window:';
-  document.body.appendChild(divElement);
-  const formElement = document.createElement('form');
-  formElement.name = 'SelectLinks';
+const AddLinkCheckboxes = async function(links, labels) {
+  // Set up the link selector inputs.
+  const formElement = document.querySelector('#select-links-div');
   for(var idx=0; idx < links.length; ++idx) {
     const link = links[idx];
     const label = labels[idx];
@@ -59,12 +54,14 @@ const RenderForm = function(links, labels) {
     labelElement.appendChild(anchorElement);
     rowElement.appendChild(labelElement);
   }
-  const buttonElement = document.createElement('button');
-  buttonElement.type = 'button';
-  buttonElement.textContent = 'Open';
-  buttonElement.addEventListener('click', SubmitForm);
-  formElement.appendChild(buttonElement);
-  document.body.appendChild(formElement);
+}
+
+const RenderForm = async function(links, labels) {
+  if (links == undefined || links.length == 0) {
+    debugger;
+    return;
+  }
+  await AddLinkCheckboxes(links, labels);
 }
 
 const SetupFilter = function(e) {
@@ -84,12 +81,32 @@ const SetupFilter = function(e) {
   });
 }
 
+const ToggleVisibleLinks = function(event) {
+  for (const visibleLink of document.querySelectorAll(
+    'div.row:not(.invisible) > input[name="select-links"]')) {
+    visibleLink.checked = !visibleLink.checked;
+  }
+}
+
+const SetupToggleButton = function() {
+  const toggleElement = document.querySelector('#toggle-button');
+  toggleElement.addEventListener('click', ToggleVisibleLinks);
+}
+
+const SetupOpenButton = function() {
+  const buttonElement = document.querySelector('#open-button');
+  console.log("Adding listener to", buttonElement);
+  buttonElement.addEventListener('click', OpenLinks);
+}
+
 const Main = async function() {
   const tabId = await GetCurrentTabId();
   console.log('Main: Getting links for tabId', tabId);
   const {links, labels} = await GetLinksFromSelection(tabId);
   console.log('Main: Links are', links, 'and labels are', labels);
   SetupFilter();
+  SetupToggleButton();
+  SetupOpenButton();
   RenderForm(links, labels);
 }
 
