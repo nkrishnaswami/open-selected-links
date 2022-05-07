@@ -3,19 +3,40 @@ import {GetLinksFromSelection, MakeTabsForLinks} from './utils.js';
 
 
 const GetCurrentTabId = async function() {
-  var tabs = await Promisify(chrome.tabs.query)({
+  try {
+    const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true
-  });
-  console.log('GetCurrentTabId: Getting current tab:', tabs[0]);
-  return tabs[0].id;
+    });
+    console.log('GetCurrentTabId: Getting current tab:', tab);
+    return tab.id;
+  } catch(e) {
+    if (e.name === 'TypeError') {
+      var [tab] = await Promisify(chrome.tabs.query)({
+	active: true,
+	currentWindow: true
+      });
+    }
+    console.log('GetCurrentTabId: Getting current tab:', tab);
+    return tab.id;
+  }
 }
+
+const GetAllTabGroups = async function() {
+  try {
+    return await chrome.tabGroups.query({});
+  } catch(e) {
+    return [];
+  }
+}
+
+
 
 const OpenLinks = async function(event) {
   console.log('OpenLinks: Button pressed! Form is', event);
   const form = event.target.parent;
   console.log('OpenLinks: Form:', form);
-  var windowId = document.querySelector('#new-window-checkbox').checked ?
+  var windowId = document.getElementById('new-window-checkbox').checked ?
       chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT;
   const links = [];
   const inputs = document.querySelectorAll('input[name="select-links"]:checked');
@@ -24,13 +45,14 @@ const OpenLinks = async function(event) {
     links.push(input.value);
   }
   console.log('OpenLinks: Links:', links);
-  await MakeTabsForLinks(links, windowId);
+  const tabGroupId = document.getElementById('tab-group-name').value;
+  await MakeTabsForLinks(links, windowId, tabGroupId);
   window.close();
 }
 
 const AddLinkCheckboxes = async function(links, labels) {
   // Set up the link selector inputs.
-  const formElement = document.querySelector('#select-links-div');
+  const formElement = document.getElementById('select-links-div');
   for(var idx=0; idx < links.length; ++idx) {
     const link = links[idx];
     const label = labels[idx];
@@ -57,15 +79,20 @@ const AddLinkCheckboxes = async function(links, labels) {
 }
 
 const RenderForm = async function(links, labels) {
+  if (chrome.tabGroups === undefined) {
+    console.log('Tab groups not supported: hiding UI');
+    document.getElementById('tab-group-ui').style.display = 'none';
+  }
   if (links == undefined || links.length == 0) {
-    debugger;
+    document.getElementById('error').innerText = 'No links selected';
+    document.querySelector('form[name="SelectLinks"]').style.display = 'none';
     return;
   }
   await AddLinkCheckboxes(links, labels);
 }
 
 const SetupFilter = function(e) {
-  const filter = document.querySelector('#filter');
+  const filter = document.getElementById('filter');
   filter.addEventListener('input', () => {
     console.log(`filter change event: value is ${filter.innerText}`);
     for (const row of document.querySelectorAll('div.row')) {
@@ -89,14 +116,28 @@ const ToggleVisibleLinks = function(event) {
 }
 
 const SetupToggleButton = function() {
-  const toggleElement = document.querySelector('#toggle-button');
+  const toggleElement = document.getElementById('toggle-button');
   toggleElement.addEventListener('click', ToggleVisibleLinks);
 }
 
 const SetupOpenButton = function() {
-  const buttonElement = document.querySelector('#open-button');
-  console.log("Adding listener to", buttonElement);
+  const buttonElement = document.getElementById('open-button');
+  console.log('Adding listener to', buttonElement);
   buttonElement.addEventListener('click', OpenLinks);
+}
+
+const SetupTabGroupNameInput = async function() {
+  const listElement = document.getElementById('tab-group-list');
+  console.log('Adding tab groups to', listElement);
+  const tabGroups = await GetAllTabGroups();
+  console.log('Tab groups are', tabGroups);
+  for (const tabGroup of tabGroups) {
+    const optionElement = document.createElement('option')
+    optionElement.value = tabGroup.id;
+    optionElement.innerText = tabGroup.title;
+    listElement.appendChild(optionElement);
+  }
+  console.log('Done');
 }
 
 const Main = async function() {
@@ -107,6 +148,7 @@ const Main = async function() {
   SetupFilter();
   SetupToggleButton();
   SetupOpenButton();
+  await SetupTabGroupNameInput();
   RenderForm(links, labels);
 }
 

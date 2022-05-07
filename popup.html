@@ -1,7 +1,6 @@
 <html>
   <head>
     <title>Open Selected Links</title>
-    <script type="module" src="promisify.js"></script>
     <script type="module" src="utils.js"></script>
     <script type="module" src="popup.js" defer></script>
     <style>
@@ -14,19 +13,38 @@
       [placeholder]:empty:focus::before {
 	  content: "";
       }
+      #tab-group-ui {
+	  display: flex;
+      }
+      #tab-group-ui input {
+	  flex: 1 1 auto;
+      }
+      #error {
+	  color: red;
+	  font-size: 15vh;
+	  text-align: center;
+      }
     </style>
   </head>
   <body>
-    <div id="filter"
-	 placeholder="regexp filter"
-	 style="border: 1px solid black; width: 99vw"
-	 contenteditable></div>
+    <div id="error"></div>
     <form name="SelectLinks">
+      <div id="filter"
+	   placeholder="Filter visible links using regular expression"
+	   style="border: 1px solid black; width: 99vw"
+	   contenteditable></div>
       <fieldset>
 	<button type="button" id="toggle-button">Toggle visible links</button>
 	<div id="target-window-ui">
 	  <label for="new-window-checkbox">Open links in new window:</label>
-	  <input id="new-window-checkbox" type="checkbox" checked>
+	  <input id="new-window-checkbox" type="checkbox" checked>	  
+	</div>
+	<div id="tab-group-ui">
+	  <label for="tab-group-name">Tab group:</label>
+	  <input id="tab-group-name" type="text" placeholder="Choose existing group or enter name for new group" list="tab-group-list">
+	  <datalist id="tab-group-list">
+	    <option value="-1">None</option>
+	  </datalist>
 	</div>
       </fieldset>
       

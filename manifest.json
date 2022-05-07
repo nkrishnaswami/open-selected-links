@@ -1,17 +1,19 @@
 {
   "name": "Open Selected Links",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Opens multiple links in the selected content in a new window.",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "background": {
-    "page": "background.html",
-    "persistent": false
+      "service_worker": "background.js",
+      "type": "module"
   },
-  "browser_action": {
+  "action": {
     "default_popup": "popup.html",
     "default_title": "Open Selected Links"
   },
-  "permissions": ["activeTab", "contextMenus"],
+  "permissions": ["activeTab", "contextMenus", "scripting"],
+  "optional_permissions": ["tabs", "tabGroups"],
+  "host_permissions": ["*://*/"],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
