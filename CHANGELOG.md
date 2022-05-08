@@ -1,3 +1,6 @@
+# Version 1.5
+* Add support for tab groups. 
+* Switch to Manifest v3.
 # Version 1.4
 * Add context menu items to open links in the current or new window.
 * Add button to toggle all visible (unfiltered) links in the popup.
