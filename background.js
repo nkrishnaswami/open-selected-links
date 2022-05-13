@@ -19,14 +19,14 @@ const OpenLinksInSelection = async function(info, tab) {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('Installing menu listeners');
+  console.log('Creating context menus');
   await chrome.contextMenus.create({
     id: kNewWindowMenuItemId,
     contexts: ["selection"],
     type: 'normal',
     title: 'Open all selected links in a new window',
     visible: true,
-  }, ()=>{console.log('Added menu item')});
+  }, ()=>{console.log('Added new-window menu item')});
 
   await chrome.contextMenus.create({
     id: kCurWindowMenuItemId,
@@ -34,8 +34,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     type: 'normal',
     title: 'Open all selected links in the current window',
     visible: true,
-  }, ()=>{console.log('Added menu items')});
-
-  chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
+  }, ()=>{console.log('Added cur-window menu item')});
 });
 
+chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);

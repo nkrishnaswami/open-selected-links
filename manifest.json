@@ -1,6 +1,6 @@
 {
   "name": "Open Selected Links",
-  "version": "1.5",
+  "version": "1.5.1",
   "description": "Opens multiple links in the selected content in a new window.",
   "manifest_version": 3,
   "background": {
