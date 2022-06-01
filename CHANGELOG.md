@@ -1,3 +1,7 @@
+# Version 1.6
+* Add `open selected in tab groups` entry to context menu.
+# Version 1.5.1
+* Fix broken context menus.
 # Version 1.5
 * Add support for tab groups. 
 * Switch to Manifest v3.
