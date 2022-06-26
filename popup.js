@@ -93,6 +93,7 @@ const RenderForm = async function(links, labels) {
 
 const SetupFilter = function(e) {
   const filter = document.getElementById('filter');
+  filter.focus();
   filter.addEventListener('input', () => {
     console.log(`filter change event: value is ${filter.innerText}`);
     for (const row of document.querySelectorAll('div.row')) {
