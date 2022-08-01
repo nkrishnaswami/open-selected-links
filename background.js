@@ -6,20 +6,20 @@ const kNewTabGroupMenuItemId = 'open-selected-links-new-tab-group';
 
 const OpenLinksInSelection = async function(info, tab) {
   console.log('Got menu click: ', info.menuItemId);
-  let windowId, tabGroupName;
+  const options = {};
   if (info.menuItemId === kCurWindowMenuItemId) {
-    windowId = chrome.windows.WINDOW_ID_CURRENT;
+    options.windowId = chrome.windows.WINDOW_ID_CURRENT;
   } else if (info.menuItemId === kNewWindowMenuItemId) {
-    windowId = chrome.windows.WINDOW_ID_NONE;
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
   } else if (info.menuItemId === kNewTabGroupMenuItemId) {
-    windowId = chrome.windows.WINDOW_ID_CURRENT;
-    tabGroupName = "New Tab Group";
+    options.windowId = chrome.windows.WINDOW_ID_CURRENT;
+    options.tabGroupName = "New Tab Group";
   } else {
     // Not our circus, not our monkeys.
     return;
   }
   const {links} = await GetLinksFromSelection(tab.id, info.frameId);
-  await MakeTabsForLinks(links, windowId, tabGroupName);
+  await MakeTabsForLinks(links, options);
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
