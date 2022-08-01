@@ -1,4 +1,5 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
   <head>
     <title>Open Selected Links</title>
     <script type="module" src="utils.js"></script>
@@ -37,7 +38,7 @@
 	<button type="button" id="toggle-button">Toggle visible links</button>
 	<div id="target-window-ui">
 	  <label for="new-window-checkbox">Open links in new window:</label>
-	  <input id="new-window-checkbox" type="checkbox" checked>	  
+	  <input id="new-window-checkbox" type="checkbox" checked>
 	</div>
 	<div id="tab-group-ui">
 	  <label for="tab-group-name">Tab group:</label>
@@ -45,6 +46,10 @@
 	  <datalist id="tab-group-list">
 	    <option value="-1">None</option>
 	  </datalist>
+	</div>
+	<div id="target-discard-ui">
+	  <label for="discard-tab-checkbox">Automatically snooze tabs:</label>
+	  <input id="discard-tab-checkbox" type="checkbox">
 	</div>
       </fieldset>
       

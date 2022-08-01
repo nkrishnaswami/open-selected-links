@@ -1,4 +1,3 @@
-import {Promisify} from './promisify.js';
 import {GetLinksFromSelection, MakeTabsForLinks} from './utils.js';
 
 
@@ -12,7 +11,7 @@ const GetCurrentTabId = async function() {
     return tab.id;
   } catch(e) {
     if (e.name === 'TypeError') {
-      var [tab] = await Promisify(chrome.tabs.query)({
+      var [tab] = await chrome.tabs.query({
 	active: true,
 	currentWindow: true
       });
@@ -30,14 +29,10 @@ const GetAllTabGroups = async function() {
   }
 }
 
-
-
 const OpenLinks = async function(event) {
   console.log('OpenLinks: Button pressed! Form is', event);
   const form = event.target.parent;
   console.log('OpenLinks: Form:', form);
-  var windowId = document.getElementById('new-window-checkbox').checked ?
-      chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT;
   const links = [];
   const inputs = document.querySelectorAll('input[name="select-links"]:checked');
   console.log('OpenLinks: Checked', inputs);
@@ -45,8 +40,13 @@ const OpenLinks = async function(event) {
     links.push(input.value);
   }
   console.log('OpenLinks: Links:', links);
-  const tabGroupId = document.getElementById('tab-group-name').value;
-  await MakeTabsForLinks(links, windowId, tabGroupId);
+  const options = {
+    windowId: document.getElementById('new-window-checkbox').checked ?
+      chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT,
+    tabGroupName: document.getElementById('tab-group-name').value,
+    discard: document.getElementById('discard-tab-checkbox').checked,
+  };
+  await MakeTabsForLinks(links, options);
   window.close();
 }
 
