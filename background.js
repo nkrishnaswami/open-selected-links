@@ -22,8 +22,9 @@ const OpenLinksInSelection = async function(info, tab) {
   await MakeTabsForLinks(links, options);
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+const Setup = async () => {
   console.log('Creating context menus');
+  await chrome.contextMenus.removeAll();
   await chrome.contextMenus.create({
     id: kNewWindowMenuItemId,
     contexts: ["selection"],
@@ -49,6 +50,8 @@ chrome.runtime.onInstalled.addListener(async () => {
       visible: true,
     }, ()=>{console.log('Added new-tab-group menu item')});
   }
-});
+  chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
+};
 
-chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
+Setup();
+
