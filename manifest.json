@@ -1,6 +1,6 @@
 {
   "name": "Open Selected Links",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.",
   "manifest_version": 3,
   "background": {
@@ -10,6 +10,17 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Open Selected Links"
+  },
+  "commands": {
+    "osl_in_tabs": {
+      "description": "Open selected links in new tabs in the current window"
+    },
+    "osl_in_window": {
+      "description": "Open selected links in a new window"
+    },
+    "osl_in_tab_group": {
+      "description": "Open selected links in a new tab group in the current window"
+    }
   },
   "permissions": ["activeTab", "contextMenus", "scripting", "tabGroups"],
   "icons": {

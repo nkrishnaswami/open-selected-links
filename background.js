@@ -22,6 +22,28 @@ const OpenLinksInSelection = async function(info, tab) {
   await MakeTabsForLinks(links, options);
 }
 
+const kCommandOslInTabs = "osl_in_tabs";
+const kCommandOslInWindow = "osl_in_window";
+const kCommandOslInTabGroup = "osl_in_tab_group";
+
+const HandleOpenSelectedLinksCommand = async function(command, tab) {
+  console.log('Got command: ', command);
+  const options = {};
+  if (command == kCommandOslInTabs) {
+    options.windowId = chrome.windows.WINDOW_ID_CURRENT;
+  } else if (command == kCommandOslInWindow) {
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
+  } else if (command == kOslInTabGroup) {
+    options.windowId = chrome.windows.WINDOW_ID_CURRENT;
+    options.tabGroupName = "New Tab Group";
+  } else {
+    // Not our circus, not our monkeys.
+    return;
+  }
+  const {links} = await GetLinksFromSelection(tab.id);
+  await MakeTabsForLinks(links, options);
+}
+
 const Setup = async () => {
   console.log('Creating context menus');
   await chrome.contextMenus.removeAll();
@@ -51,6 +73,8 @@ const Setup = async () => {
     }, ()=>{console.log('Added new-tab-group menu item')});
   }
   chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
+
+  chrome.commands.onCommand.addListener(HandleOpenSelectedLinksCommand);
 };
 
 Setup();
