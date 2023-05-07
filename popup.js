@@ -91,6 +91,77 @@ const RenderForm = async function(links, labels) {
   await AddLinkCheckboxes(links, labels);
 }
 
+const HighlightRegex = function(root, regex) {
+  console.log("Matching", regex);
+  const matches = Array.from(root.textContent.matchAll(regex)).reverse();
+  console.log("Found", matches.length, "matches")
+  for (const matchItem of matches) {
+    console.log(`Processing match "${matchItem[0]}" (${matchItem.index}:${matchItem.index + matchItem[0].length})`)
+    const match = matchItem[0]
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+    const startIndex = matchItem.index
+    const endIndex = startIndex + match.length;
+    var curIndex = 0; // index into root.textContent
+    var nodeIndex = 0; // index into current nodeValue
+    var matchedCount = 0; // number of matched characters highlighted
+
+    let node = walker.firstChild();
+    let nodeMatchStart = 0
+    // find the start of the match
+    while (node && startIndex >= curIndex + node.nodeValue.length) {
+      curIndex += node.nodeValue.length;
+      node = walker.nextNode()
+    }
+    if (!node) {
+      console.log("No match start");
+      return;
+    }
+    // how far into the node value does the match start?
+    nodeMatchStart = startIndex - curIndex;
+    console.log(`Found match start ${startIndex} at ${curIndex}+${nodeMatchStart}: ${node.nodeValue.slice(nodeMatchStart)}`);
+
+    // Highlight subspans till the end of the match
+    while (node && curIndex <= endIndex) {
+      const text = node.nodeValue;
+      console.log(`Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`);
+      let replacements = []
+      if (nodeMatchStart > 0) {
+	console.log("prefix text:", text.slice(0, nodeMatchStart))
+	replacements.push(text.slice(0, nodeMatchStart));
+      }
+      const span = document.createElement('span');
+      span.className = 'highlight';
+      let nodeMatchEnd;
+      if (curIndex + text.length > endIndex) {
+	nodeMatchEnd = endIndex - curIndex;
+      } else {
+	nodeMatchEnd = text.length;
+      }
+      span.innerText = text.slice(nodeMatchStart, nodeMatchEnd);
+      console.log('Content text:', nodeMatchStart, nodeMatchEnd, span.innerText);
+      replacements.push(span);
+      if (nodeMatchEnd < text.length) {
+	console.log("suffix text:", text.slice(nodeMatchEnd))
+	replacements.push(text.slice(nodeMatchEnd));
+      }
+      console.log('Replacing', node, "with", replacements);
+      const nextNode = walker.nextNode();
+      node.replaceWith(...replacements)
+      curIndex += text.length;
+      nodeMatchStart = 0
+      node = nextNode;
+      console.log("Next node is", node.nodeValue);
+    }
+  }
+}
+
+const ClearHighlights = function(root) {
+  for (const element of root.querySelectorAll('span.highlight')) {
+    element.replaceWith(element.textContent)
+  }
+}
+
 const SetupFilter = function(e) {
   const filter = document.getElementById('filter');
   filter.focus();
@@ -105,6 +176,10 @@ const SetupFilter = function(e) {
         console.log('Hiding')
 	row.classList.add('invisible');
       }
+    }
+    ClearHighlights(document.getElementById('select-links-div'));
+    if (filter.innerText.length != 0) {
+      HighlightRegex(document.getElementById('select-links-div'), new RegExp(filter.innerText, 'ig'));
     }
   });
 }
