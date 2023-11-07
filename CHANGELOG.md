@@ -1,3 +1,14 @@
+# Version 1.7.3
+* Highlight regex match when using filter in popup.
+# Version 1.7.2
+* Add keyboard shortcut support.
+# Version 1.7.1
+* Ensure context menus are always installed.
+* Add option to auto-discard/snooze newly-created tabs.
+# Version 1.7.0
+* Switch to manifest v3 to use promise-based API.
+# Version 1.6.1
+* Automatically focus the filter text input in the popup.
 # Version 1.6
 * Add `open selected in tab groups` entry to context menu.
 # Version 1.5.1
