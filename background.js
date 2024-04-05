@@ -44,38 +44,33 @@ const HandleOpenSelectedLinksCommand = async function(command, tab) {
   await MakeTabsForLinks(links, options);
 }
 
-const Setup = async () => {
-  console.log('Creating context menus');
-  await chrome.contextMenus.removeAll();
-  await chrome.contextMenus.create({
-    id: kNewWindowMenuItemId,
+console.log('Creating context menus');
+chrome.contextMenus.removeAll();
+chrome.contextMenus.create({
+  id: kNewWindowMenuItemId,
+  contexts: ["selection"],
+  type: 'normal',
+  title: 'Open all selected links in a new window',
+  visible: true,
+}, ()=>{console.log('Added new-window menu item')});
+
+chrome.contextMenus.create({
+  id: kCurWindowMenuItemId,
+  contexts: ["selection"],
+  type: 'normal',
+  title: 'Open all selected links in the current window',
+  visible: true,
+}, ()=>{console.log('Added cur-window menu item')});
+
+if (chrome.tabGroups !== undefined) {
+  chrome.contextMenus.create({
+    id: kNewTabGroupMenuItemId,
     contexts: ["selection"],
     type: 'normal',
-    title: 'Open all selected links in a new window',
+    title: 'Open all selected links in a new tab group',
     visible: true,
-  }, ()=>{console.log('Added new-window menu item')});
+  }, ()=>{console.log('Added new-tab-group menu item')});
+}
 
-  await chrome.contextMenus.create({
-    id: kCurWindowMenuItemId,
-    contexts: ["selection"],
-    type: 'normal',
-    title: 'Open all selected links in the current window',
-    visible: true,
-  }, ()=>{console.log('Added cur-window menu item')});
-
-  if (chrome.tabGroups !== undefined) {
-    await chrome.contextMenus.create({
-      id: kNewTabGroupMenuItemId,
-      contexts: ["selection"],
-      type: 'normal',
-      title: 'Open all selected links in a new tab group',
-      visible: true,
-    }, ()=>{console.log('Added new-tab-group menu item')});
-  }
-  chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
-
-  chrome.commands.onCommand.addListener(HandleOpenSelectedLinksCommand);
-};
-
-Setup();
-
+chrome.contextMenus.onClicked.addListener(OpenLinksInSelection);
+chrome.commands.onCommand.addListener(HandleOpenSelectedLinksCommand);
