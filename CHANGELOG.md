@@ -1,3 +1,5 @@
+# Version 1.7.4
+* Fix delayed context menu listener registration. [#11](https://github.com/nkrishnaswami/open-selected-links/issues/11)
 # Version 1.7.3
 * Highlight regex match when using filter in popup.
 # Version 1.7.2
