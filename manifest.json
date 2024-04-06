@@ -1,6 +1,6 @@
 {
   "name": "Open Selected Links",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.",
   "manifest_version": 3,
   "background": {
