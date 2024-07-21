@@ -1,0 +1,36 @@
+body { width: 100%; }
+
+.invisible { display: none; }
+
+[placeholder]:empty::before {
+    content: attr(placeholder);
+    color: #555;
+}
+
+[placeholder]:empty:focus::before {
+    content: "";
+}
+
+#tab-group-ui {
+    display: flex;
+}
+
+#tab-group-ui input {
+    flex: 1 1 auto;
+}
+
+#error {
+    color: red;
+    font-size: 36pt;
+    text-align: center;
+}
+
+#error_sub {
+    color: red;
+    font-size: 24pt;
+    text-align: left;
+}
+
+span.highlight {
+    background-color: yellow
+}

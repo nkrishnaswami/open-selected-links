@@ -1,3 +1,18 @@
+# Version 1.8.0
+* Port to Typescript
+  - this brings more assurance of correctness.
+* New OSL options
+  - `deduplicate`: when true, only open one tab for identical links in the selection.
+  - `focus`: when true, make the opened tab active or give the opened window focus.  
+    *Note*: New windows may be drawn on top without being given focus, which can be confusing.=
+* Add persistent settings
+  - no longer forced to re-select options in the popup.
+  - can customize affect context menu clicks.
+* Command and menu item handlers share code.
+* Refactored content script
+  - now persistent, and communicates with extension via messages.
+* Error handling/messages in popup are more robust.
+* Refactor `MakeTabsForLink` into smaller functions.
 # Version 1.7.4
 * Fix delayed context menu listener registration. [#11](https://github.com/nkrishnaswami/open-selected-links/issues/11)
 # Version 1.7.3

@@ -1,98 +1,105 @@
-import {LoadSettings} from './settings.js';
-import {OSLSession, MakeTabsForLinks} from './utils.js';
+import './index.css';
+import { OSLSession, makeTabsForLinks } from '../common/extract-links.js'
+import { loadSettings, InputType, SettingID, Settings } from '../common/settings.js'
 
-const ShowError = function(title, subtitle) {
-  document.getElementById('error').innerText = title
-  if (subtitle) {
-    document.getElementById('error_sub').innerText = subtitle
-  }
+const showError = (title: string, subtitle?: string) => {
+  document.getElementById('error')!.innerText = title;
+  document.getElementById('error_sub')!.innerText = subtitle ?? '';
 }
 
-
-const ApplySettings = async function() {
-  const setting_to_id = new Map([
-    ['use_new_window', 'new-window-checkbox'],
-    ['new_tab_group_name', 'tab-group-name'],
-    ['auto_discard', 'discard-tab-checkbox'],
-    ['deduplicate', 'deduplicate-links-checkbox'],
-    ['focus', 'focus-checkbox'],
-  ]);
-  const settings = await LoadSettings();
+const applySettings = async () => {
+  const settings = await loadSettings()
   console.log('settings', settings)
-  for (const [setting, id] of setting_to_id) {
-    const element = document.getElementById(id)
-    console.log('ApplySettings:', setting, settings[setting], element)
-    if (element.type == 'checkbox') {
-      element.checked = settings[setting]
-    } else if (element.type == 'text') {
-      element.value = settings[setting] ? settings[setting] : null;
+  const settingToInput: [keyof Settings, string][] = [
+    [SettingID.UseNewWindow, 'new-window-checkbox'],
+    [SettingID.NewTabGroupName, 'tab-group-name'],
+    [SettingID.AutoDiscard, 'discard-tab-checkbox'],
+    [SettingID.Deduplicate, 'deduplicate-links-checkbox'],
+    [SettingID.Focus, 'focus-checkbox'],
+  ];
+  for (const [setting, id] of settingToInput) {
+    const element = document.getElementById(id) as HTMLInputElement;
+    console.log('applySettings:', setting, settings[setting], element)
+    if (element.type == InputType.Checkbox) {
+      element.checked = settings[setting] as boolean;
+    } else if (element.type == InputType.Text) {
+      element.value = settings[setting] as string;
     }
   }
 }
 
-const GetCurrentTabId = async function() {
+const getCurrentTabId = async () => {
   try {
     const [tab] = await chrome.tabs.query({
       active: true,
-      currentWindow: true
-    });
-    console.log('GetCurrentTabId: Getting current tab:', tab);
-    return tab.id;
-  } catch(e) {
-    if (e.name === 'TypeError') {
+      currentWindow: true,
+    })
+    console.log('getCurrentTabId: Getting current tab:', tab)
+    return tab.id
+  } catch (e: any) {
+    if (e instanceof TypeError) {
       var [tab] = await chrome.tabs.query({
-	active: true,
-	currentWindow: true
-      });
+        active: true,
+        currentWindow: true,
+      })
+      console.log('getCurrentTabId: Getting current tab:', tab)
+      return tab.id
     }
-    console.log('GetCurrentTabId: Getting current tab:', tab);
-    return tab.id;
+    throw e;
   }
 }
 
-const GetAllTabGroups = async function() {
+const getAllTabGroups = async () => {
   try {
-    return await chrome.tabGroups.query({});
-  } catch(e) {
-    return [];
+    return await chrome.tabGroups.query({})
+  } catch (e) {
+    return []
   }
 }
 
-const OpenLinks = async function(event) {
-  console.log('OpenLinks: Button pressed! Form is', event);
-  const form = event.target.parent;
-  console.log('OpenLinks: Form:', form);
-  const links = [];
-  const inputs = document.querySelectorAll('input[name="select-links"]:checked');
-  console.log('OpenLinks: Checked', inputs);
-  console.log('OpenLinks: Links:', links);
+function getInput(id: string): HTMLInputElement {
+  return document.getElementById(id)! as HTMLInputElement;
+}
+
+const openLinks = async (event: Event) => {
+  console.log('openLinks: Button pressed! Form is', event)
+  const form = (event.target! as HTMLButtonElement).parentElement
+  console.log('openLinks: Form:', form)
+  const inputs: NodeListOf<HTMLInputElement> = document.querySelectorAll('input[name="select-links"]:checked')
+  const links: string[] = [];
+  console.log('openLinks: Checked', inputs)
+  for (const elt of inputs) {
+    links.push(elt.parentElement!.querySelector('a')!.href!)
+  }
+  console.log('openLinks: Links:', links)
   const options = {
-    windowId: document.getElementById('new-window-checkbox').checked ?
-      chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT,
-    tabGroupName: document.getElementById('tab-group-name').value || undefined,
-    discard: document.getElementById('discard-tab-checkbox').checked,
-    deduplicate: document.getElementById('deduplicate-links-checkbox').checked,
-    focus: document.getElementById('focus-checkbox').checked
-  };
+    windowId: getInput('new-window-checkbox').checked
+      ? chrome.windows.WINDOW_ID_NONE
+      : chrome.windows.WINDOW_ID_CURRENT,
+    tabGroupName: getInput('tab-group-name').value || undefined,
+    discard: getInput('discard-tab-checkbox').checked,
+    deduplicate: getInput('deduplicate-links-checkbox').checked,
+    focus: getInput('focus-checkbox').checked,
+  }
   try {
-    await MakeTabsForLinks(links, options);
-  } catch(e) {
-    ShowError(String(e));
+    await makeTabsForLinks(links, options)
+  } catch (e: any) {
+    showError(e)
     throw e
   }
   // window.close();
 }
 
-const AddLinkCheckboxes = async function(links, labels, session) {
+const addLinkCheckboxes = async (links: string[], labels: string[], session: OSLSession) => {
   // Set up the link selector inputs.
-  const formElement = document.getElementById('select-links-div');
-  const seen = new Set()
-  for(var idx=0; idx < links.length; ++idx) {
+  const formElement: HTMLDivElement = document.getElementById('select-links-div')! as HTMLDivElement;
+  const seen: Set<string> = new Set();
+  for (var idx = 0; idx < links.length; ++idx) {
     const link = links[idx];
     const label = labels[idx];
     const duplicate = seen.has(link);
     seen.add(link);
-    console.log('RenderForm: Link is', link, 'and label is', label);
+    console.log('addLinkCheckboxes: Link is', link, 'and label is', label);
     const rowElement = document.createElement('div');
     rowElement.className = 'row';
     if (duplicate) {
@@ -105,217 +112,233 @@ const AddLinkCheckboxes = async function(links, labels, session) {
     inputElement.name = 'select-links';
     inputElement.value = link;
     rowElement.appendChild(inputElement);
-    
+
     const labelElement = document.createElement('label');
-    labelElement.for = inputElement.id;
+    labelElement.htmlFor = inputElement.id;
     const anchorElement = document.createElement('a');
     anchorElement.href = link;
     anchorElement.title = link;
     anchorElement.textContent = label.trim() || link;
 
-    labelElement.addEventListener('onmouseover', async () => {
+    labelElement.addEventListener('onmouseenter', async () => {
       console.log('mouseenter');
-      await session.Highlight(idx);
+      await session.highlight(idx);
     })
-    labelElement.addEventListener('onmouseout', async () => {
+    labelElement.addEventListener('onmouseleave', async () => {
       console.log('mouseleave');
-      await session.Unhighlight(idx)
-    });
-
+      await session.unhighlight();
+    })
 
     labelElement.appendChild(anchorElement);
     rowElement.appendChild(labelElement);
   }
 }
 
-const RenderForm = async function(links, labels, session) {
+const renderForm = async function (links: string[], labels: string[], session: OSLSession) {
   if (chrome.tabGroups === undefined) {
-    console.log('Tab groups not supported: hiding UI');
-    document.getElementById('tab-group-ui').style.display = 'none';
+    console.log('renderForm: Tab groups not supported: hiding UI');
+    document.getElementById('tab-group-ui')!.style.display = 'none';
   }
-  if (!links) {
-    ShowError('No links selected');
-    document.querySelector('form[name="SelectLinks"]').style.display = 'none';
+  if (links.length == 0) {
+    showError('No links selected');
+    const form: HTMLFormElement = document.querySelector('form[name="SelectLinks"]')! as HTMLFormElement;
+    form.style.display = 'none';
     return;
   }
-  await AddLinkCheckboxes(links, labels, session);
+  await addLinkCheckboxes(links, labels, session);
 }
 
-const HighlightRegex = function(root, regex) {
-  console.log("Matching", regex);
-  const matches = Array.from(root.textContent.matchAll(regex)).reverse();
-  console.log("Found", matches.length, "matches")
+const highlightRegex = function (root: Element, regex: RegExp) {
+  console.log('Matching', regex)
+  const matches = Array.from((root.textContent ?? '').matchAll(regex)).reverse();
+  console.log('Found', matches.length, 'matches');
   for (const matchItem of matches) {
-    console.log(`Processing match "${matchItem[0]}" (${matchItem.index}:${matchItem.index + matchItem[0].length})`)
-    const match = matchItem[0]
+    console.log(
+      `Processing match "${matchItem[0]}" (${matchItem.index}:${matchItem.index + matchItem[0].length})`,
+    );
+    const match = matchItem[0];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 
-    const startIndex = matchItem.index
+    const startIndex = matchItem.index;
     const endIndex = startIndex + match.length;
     var curIndex = 0; // index into root.textContent
     var nodeIndex = 0; // index into current nodeValue
     var matchedCount = 0; // number of matched characters highlighted
 
-    let node = walker.firstChild();
-    let nodeMatchStart = 0
+    let node = walker.firstChild() as Element;
+    let nodeMatchStart = 0;
     // find the start of the match
-    while (node && startIndex >= curIndex + node.nodeValue.length) {
-      curIndex += node.nodeValue.length;
-      node = walker.nextNode()
+    while (node && startIndex >= curIndex + node.nodeValue!.length) {
+      curIndex += node.nodeValue!.length;
+      node = walker.nextNode() as Element;
     }
     if (!node) {
-      console.log("No match start");
+      console.log('No match start');
       return;
     }
     // how far into the node value does the match start?
     nodeMatchStart = startIndex - curIndex;
-    console.log(`Found match start ${startIndex} at ${curIndex}+${nodeMatchStart}: ${node.nodeValue.slice(nodeMatchStart)}`);
+    console.log(
+      `Found match start ${startIndex} at ${curIndex}+${nodeMatchStart}: ${node.nodeValue!.slice(nodeMatchStart)}`,
+    );
 
     // Highlight subspans till the end of the match
     while (node && curIndex <= endIndex) {
-      const text = node.nodeValue;
-      console.log(`Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`);
-      let replacements = []
+      const text = node.nodeValue!;
+      console.log(
+        `Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`,
+      );
+      let replacements = [];
       if (nodeMatchStart > 0) {
-	console.log("prefix text:", text.slice(0, nodeMatchStart))
-	replacements.push(text.slice(0, nodeMatchStart));
+        console.log('prefix text:', text.slice(0, nodeMatchStart));
+        replacements.push(text.slice(0, nodeMatchStart));
       }
       const span = document.createElement('span');
       span.className = 'highlight';
       let nodeMatchEnd;
       if (curIndex + text.length > endIndex) {
-	nodeMatchEnd = endIndex - curIndex;
+        nodeMatchEnd = endIndex - curIndex;
       } else {
-	nodeMatchEnd = text.length;
+        nodeMatchEnd = text.length;
       }
       span.innerText = text.slice(nodeMatchStart, nodeMatchEnd);
-      console.log('Content text:', nodeMatchStart, nodeMatchEnd, span.innerText);
+      console.log('Content text:', nodeMatchStart, nodeMatchEnd, span.innerText);;
       replacements.push(span);
       if (nodeMatchEnd < text.length) {
-	console.log("suffix text:", text.slice(nodeMatchEnd))
-	replacements.push(text.slice(nodeMatchEnd));
+        console.log('suffix text:', text.slice(nodeMatchEnd));
+        replacements.push(text.slice(nodeMatchEnd));
       }
-      console.log('Replacing', node, "with", replacements);
+      console.log('Replacing', node, 'with', replacements);
       const nextNode = walker.nextNode();
-      node.replaceWith(...replacements)
+      node.replaceWith(...replacements);
       curIndex += text.length;
-      nodeMatchStart = 0
-      node = nextNode;
-      console.log("Next node is", node.nodeValue);
+      nodeMatchStart = 0;
+      node = nextNode! as Element;
+      console.log('Next node is', node.nodeValue);
     }
   }
 }
 
-const ClearHighlights = function(root) {
+const clearHighlights = function (root: Element) {
   for (const element of root.querySelectorAll('span.highlight')) {
-    element.replaceWith(element.textContent)
+    element.replaceWith(element.textContent ?? '');
   }
 }
 
-const SetupFilter = function(e) {
-  const filter = document.getElementById('filter');
+const setupFilter = function () {
+  const filter = document.getElementById('filter')!;
   filter.focus();
   filter.addEventListener('input', () => {
     console.log(`filter change event: value is ${filter.innerText}`);
     for (const row of document.querySelectorAll('div.row')) {
       console.log('Processing', row);
-      if (row.textContent.match(RegExp(filter.innerText, 'i'))) {
+      if ((row.textContent ?? '').match(RegExp(filter.innerText, 'i'))) {
         console.log('Showing');
-	row.classList.remove('invisible');
+        row.classList.remove('invisible');
       } else {
-        console.log('Hiding')
-	row.classList.add('invisible');
+        console.log('Hiding');
+        row.classList.add('invisible');
       }
     }
-    ClearHighlights(document.getElementById('select-links-div'));
+    clearHighlights(document.getElementById('select-links-div')!);
     if (filter.innerText.length != 0) {
-      HighlightRegex(document.getElementById('select-links-div'), new RegExp(filter.innerText, 'ig'));
+      highlightRegex(
+        document.getElementById('select-links-div')!,
+        new RegExp(filter.innerText, 'ig'),
+      );
     }
-  });
+  })
 }
 
-const ToggleVisibleLinks = function(event) {
+const toggleVisibleLinks = function (event: Event) {
   for (const visibleLink of document.querySelectorAll(
-    'div.row:not(.invisible) > input[name="select-links"]')) {
+    'div.row:not(.invisible) > input[name="select-links"]',
+  ) as NodeListOf<HTMLInputElement>) {
     visibleLink.checked = !visibleLink.checked;
   }
 }
 
-const SetupToggleButton = function() {
-  const toggleElement = document.getElementById('toggle-button');
-  toggleElement.addEventListener('click', ToggleVisibleLinks);
+const setupToggleButton = function () {
+  const toggleElement = document.getElementById('toggle-button')!;
+  toggleElement.addEventListener('click', toggleVisibleLinks);
 }
 
-const SetupOpenButton = function() {
-  const buttonElement = document.getElementById('open-button');
+const setupOpenButton = function () {
+  const buttonElement = document.getElementById('open-button')!;
   console.log('Adding listener to', buttonElement);
-  buttonElement.addEventListener('click', OpenLinks);
+  buttonElement.addEventListener('click', openLinks);
 }
 
-const SetupTabGroupNameInput = async function() {
-  const listElement = document.getElementById('tab-group-list');
+const setupTabGroupNameInput = async function () {
+  const listElement = document.getElementById('tab-group-list')!;
   console.log('Adding tab groups to', listElement);
-  const tabGroups = await GetAllTabGroups();
+  const tabGroups = await getAllTabGroups();
   console.log('Tab groups are', tabGroups);
   for (const tabGroup of tabGroups) {
-    const optionElement = document.createElement('option')
-    optionElement.value = tabGroup.id;
-    optionElement.innerText = tabGroup.title;
+    const optionElement = document.createElement('option');
+    optionElement.value = tabGroup.id.toString();
+    optionElement.innerText = tabGroup.title ?? '';
     listElement.appendChild(optionElement);
   }
   console.log('Done');
 }
 
-const ToggleDuplicateVisibility = function() {
+const toggleDuplicateVisibility = function () {
   console.log('Toggling duplicate row visiblity');
-  const inputElement = document.getElementById('deduplicate-links-checkbox');
-  hide = inputElement.checked;
+  const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
+  const hide = inputElement.checked;
   for (const duplicateRow of document.querySelectorAll('div.row.duplicate)')) {
     if (hide) {
       console.log('Hiding row', duplicateRow);
-      duplicateRow.class_list.add('invisible');
+      duplicateRow.classList.add('invisible');
     } else {
-      duplicateRow.class_list.remove('invisible');
+      duplicateRow.classList.remove('invisible');
     }
   }
 }
 
-const SetupDeduplicateInput = function() {
-  const inputElement = document.getElementById('deduplicate-links-checkbox');
+const setupDeduplicateInput = function () {
+  const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
   console.log('Adding listener to', inputElement);
-  inputElement.addEventListener('changed', ToggleDuplicateVisibility);
+  inputElement.addEventListener('changed', toggleDuplicateVisibility)
 }
 
 // Filling in form
-const Main = async () => {
-  ShowError('', '');
-  const err = {msg: 'Internal error', sub: ''};
+const main = async () => {
+  showError('', '');
+  const err = { msg: 'Internal error', sub: '' };
   try {
-    await ApplySettings();
-    const tabId = await GetCurrentTabId();
-    err.msg = 'Permissions problem'
+    await applySettings();
+
+    err.msg = 'Unable to get tab ID'
+    err.sub = ''
+    const tabId = await getCurrentTabId();
+    if (tabId == undefined) {
+      throw Error('Failed to get current tab')
+    }
+
+    err.msg = 'Permissions problem';
     err.sub = 'These can be transient; try again soon';
     const session = new OSLSession(tabId);
-    await session.Start();
 
     err.msg = 'Error retrieving links';
     err.sub = '';
-    console.log('Main: Getting links for tabId', tabId);
-    const {links, labels} = await session.GetLinksAndLabels();
-    console.log('Main: Links are', links, 'and labels are', labels);
+    console.log('main: Getting links for tabId', tabId);
+    const { links, labels } = await session.getLinksAndLabels();
+    console.log('main: Links are', links, 'and labels are', labels);
 
     err.msg = 'Unknown error';
     err.sub = '';
-    SetupFilter();
-    SetupToggleButton();
-    SetupOpenButton();
-    SetupDeduplicateInput();
-    await SetupTabGroupNameInput();
-    RenderForm(links, labels, session);
-  } catch(e) {
-    ShowError(err.msg, err.sub);
-    throw e;
+    setupFilter();
+    setupToggleButton();
+    setupOpenButton();
+    setupDeduplicateInput();
+    await setupTabGroupNameInput();
+    renderForm(links, labels, session);
+  } catch (e) {
+    showError(err.msg, err.sub);
+    throw e
   }
 }
 
-await Main()
+await main();

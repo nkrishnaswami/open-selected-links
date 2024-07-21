@@ -1,75 +1,117 @@
-import {LoadSettings} from './settings.js';
-import {OSLSession, MakeTabsForLinks} from './utils.js';
+import {MakeTabOptions, OSLSession, makeTabsForLinks} from '../common/extract-links';
+import {loadSettings} from '../common/settings';
 
 
-const OSLTargets = [
+enum OSLRequestID {
+  CurrentWindow = 'current_window',
+  NewWindow = 'new_window',
+  NewTabGroup = 'new_tab_group',
+}
+
+enum OSLMenuItemID {
+  CurrentWindow = 'open-selected-links-cur-window',
+  NewWindow = 'open-selected-links-new-window',
+  NewTabGroup = 'open-selected-links-new-tab-group',
+}
+
+enum OSLCommandID {
+  CurrentWindow = 'osl_in_tabs',
+  NewWindow = 'osl_in_window',
+  NewTabGroup = 'osl_in_tab_group',
+}
+
+interface OSLRequestSpec {
+  id: OSLRequestID,
+  title: string,
+  menu_item_id: OSLMenuItemID,
+  command: OSLCommandID,
+}
+
+const oslRequestSpecs: OSLRequestSpec[] = [
   {
-    id: 'current_window',
-    title: 'Open all selected links in a new window',
-    menu_item_id: 'open-selected-links-cur-window',
-    command: "osl_in_tabs",
-  }, {
-    id: 'new_window',
+    id: OSLRequestID.CurrentWindow,
     title: 'Open all selected links in the current window',
-    menu_item_id: 'open-selected-links-new-window',
-    command: "osl_in_window",
+    menu_item_id: OSLMenuItemID.CurrentWindow,
+    command: OSLCommandID.CurrentWindow,
   }, {
-    id: 'new_tab_group',
+    id: OSLRequestID.NewWindow,
+    title: 'Open all selected links in a new window',
+    menu_item_id: OSLMenuItemID.NewWindow,
+    command: OSLCommandID.NewWindow,
+  }, {
+    id: OSLRequestID.NewTabGroup,
     title: 'Open all selected links in a new tab group',
-    menu_item_id: 'open-selected-links-new-tab-group',
-    command: "osl_in_tab_group",
+    menu_item_id: OSLMenuItemID.NewTabGroup,
+    command: OSLCommandID.NewTabGroup,
   } 
 ];
 
-const OSLTargetsByMenuItemID = Object.fromEntries(
-  OSLTargets.map(oslTarget => [oslTarget.menu_item_id, oslTarget.id]));
+const oslRequestIDsByMenuItemID = Object.fromEntries(
+  oslRequestSpecs.map(oslRequestSpec => [oslRequestSpec.menu_item_id, oslRequestSpec.id]));
 
-const OSLTargetsByCommand = Object.fromEntries(
-  OSLTargets.map(oslTarget => [oslTarget.command, oslTarget.id]));
+const oslRequestIDsByCommand = Object.fromEntries(
+  oslRequestSpecs.map(oslRequestSpec => [oslRequestSpec.command, oslRequestSpec.id]));
 
-const ProcessOSLRequest = async function(osl_request_id, tab, frame_id) {
-  const settings = await GetSettings();
-  const options = {discard: settings.auto_discard};
-  if (osl_target_id == 'current_window') {
+const processOSLRequest = async (osl_request_id: OSLRequestID, tab: chrome.tabs.Tab, frame_id?: number) => {
+  const settings = await loadSettings();
+  const options: MakeTabOptions = {
+    discard: settings.auto_discard,
+    deduplicate: settings.deduplicate,
+    focus: settings.focus,
+  };
+  if (osl_request_id == 'current_window') {
     options.windowId = chrome.windows.WINDOW_ID_CURRENT;
-  } else if (osl_target_id == 'new_window') {
+  } else if (osl_request_id == 'new_window') {
     options.windowId = chrome.windows.WINDOW_ID_NONE;
-  } else if (osl_target_id == 'new_tab_group') {
+  } else if (osl_request_id == 'new_tab_group') {
     options.windowId = chrome.windows.WINDOW_ID_CURRENT;
     options.tabGroupName = settings.new_tab_group_name || "New Tab Group";
   } else {
     // Not our circus, not our monkeys.
     return;
   }
-  const session = new OSLSession(tab.id, frameId);
-  await session.Start();
-  const {links} = await session.GetLinksAndLabels();
-  await MakeTabsForLinks(links, options);
+  if (!tab.id) {
+    console.log('No tab ID found');
+    return;
+  }
+  const session = new OSLSession(tab.id, frame_id);
+  const {links} = await session.getLinksAndLabels();
+  await makeTabsForLinks(links, options);
 }
 
-const HandleOpenSelectedLinkMenuClick = async function(info, tab) {
+const handleOpenSelectedLinkMenuClick = async (info: chrome.contextMenus.OnClickData, tab: chrome.tabs.Tab | undefined) => {
   console.log('Got menu click: ', info.menuItemId);
-  await ProcessOSLRequest(OSLTargetsByMenuItemID[info.menuItemId], tab, info.frameId)
+  if (!tab) {
+    console.log('No tab found');
+    return;
+  }
+  const osl_request_id = oslRequestIDsByMenuItemID[info.menuItemId]
+  if (osl_request_id) {
+    await processOSLRequest(osl_request_id, tab, info.frameId)
+  }
 }
 
-const HandleOpenSelectedLinksCommand = async function(command, tab) {
+const handleOpenSelectedLinksCommand = async (command: string, tab: chrome.tabs.Tab) => {
   console.log('Got command: ', command);
-  await ProcessOSLRequest(OSLTargetsByCommand[command], tab, info.frameId)
+  const osl_request_id = oslRequestIDsByCommand[command as OSLCommandID];
+  if (osl_request_id) {
+    await processOSLRequest(osl_request_id, tab)
+  }
 }
 
-const SetupOSLActions() {
+const setupOSLActions = () => {
   chrome.contextMenus.removeAll();
-  for (const oslTarget of OSLTargets) {
+  for (const oslRequestSpec of oslRequestSpecs) {
     chrome.contextMenus.create({
-      id: oslTarget.menu_item_id,
+      id: oslRequestSpec.menu_item_id,
       contexts: ["selection"],
       type: 'normal',
-      title: oslTarget.title,
+      title: oslRequestSpec.title,
       visible: true,
-    }, ()=>{console.log('Added new-window menu item', oslTarget)});
+    }, ()=>{console.log('Added OSL menu item', oslRequestSpec.id)});
   }
-  chrome.contextMenus.onClicked.addListener(HandleOpenSelectedLinkMenuClick);
-  chrome.commands.onCommand.addListener(HandleOpenSelectedLinksCommand);
+  chrome.contextMenus.onClicked.addListener(handleOpenSelectedLinkMenuClick);
+  chrome.commands.onCommand.addListener(handleOpenSelectedLinksCommand);
 }
 
-SetupOSLActions();
+setupOSLActions();

@@ -1,131 +1,119 @@
-var o = {
-  success: false
-};
-if (!document.open_selected_links_running) {
-  document.open_selected_links_running = true;
+import './index.css';
 
-  // Add some style
-  const style = document.createElement('style');
-  style.innerText = `.open_selected_links_highlight {
-  background-color: yellow;
-}`
-  document.head.appendChild(style);
+class SelectionLinkExtractor {
+  labels: string[] = [];
+  links: string[] = [];
+  anchors: HTMLAnchorElement[] = [];
+  valid: boolean = false;
 
-  function SelectionLinkExtractor() {
-    console.log('Starting OSL extractor');
-    this.labels = [];
-    this.links = [];
-    this.anchors = [];
+  constructor() {
+    console.log('Initializing OSL extractor');
+  }
 
+  invalidate() {
+    console.log('Invalidating selection');
     this.valid = false;
+    this.links = [];
+    this.labels = [];
+    this.anchors = [];
+  }
 
-    this.ProcessFragment = function(documentFragment) {
-      console.log('Processing fragment')
-      for (const anchor of documentFragment.querySelectorAll('a[href]')) {
-	console.log('Processing anchor')
+  processFragment(documentFragment: DocumentFragment) {
+    console.log('processing fragment:', documentFragment);
+    for (const anchor of documentFragment.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>) {
+      var url = new URL(anchor.href, window.location.href);
+      if (url.protocol.startsWith('http')) {
+	this.links.push(url.href);
+	this.labels.push(anchor.innerText.trim());
+	this.anchors.push(anchor);
+      }
+    }
+    console.log('Done processing fragment')
+  }
+
+  processAnchorAncestor(selection: Selection) {
+    const node = selection.anchorNode || selection.focusNode;
+    console.log('processing anchor ancestor')
+    if (node) {
+      console.log('processing node', node)
+      // See if we are in an anchor.
+      const result = document.evaluate(
+	'ancestor::a', node, null,
+	XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      if (result.singleNodeValue != null) {
+	const anchor = result.singleNodeValue as HTMLAnchorElement;
 	var url = new URL(anchor.href, window.location.href);
 	console.debug(`Considering ${url.href}`);
 	if (url.protocol.startsWith('http')) {
 	  console.debug(`Adding ${url.href}`);
 	  this.links.push(url.href);
-	  this.labels.push(anchor.innerText.trim());
+	  this.labels.push(selection.toString().trim());
 	  this.anchors.push(anchor);
 	}
       }
       console.log('Done processing fragment')
     }
-
-    this.ProcessAnchorAncestor = function(node) {
-      console.log('Processing anchor ancestor, if present')
-      if (node) {
-	// See if we are in an anchor.
-	const result = document.evaluate(
-	  'ancestor::a', node, null,
-	  XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-	if (result.singleNodeValue != null) {
-	  const anchor = result.singleNodeValue;
-	  var url = new URL(anchor.href, window.location.href);
-	  console.debug(`Considering ${url.href}`);
-	  if (url.protocol.startsWith('http')) {
-	    console.debug(`Adding ${url.href}`);
-	    this.links.push(url.href);
-	    this.labels.push(selection.toString().trim());
-	    this.anchors.push(node);
-	  }
-	}
-      }
-      console.log('Done processing anchor ancestor')
-    }
-
-    this.ProcessSelection = function() {
-      console.log('Processing selection', window.getSelection())
-      const selection = window.getSelection();
-
-      console.debug('Got selection:', selection);
-      for (var rangeIdx = 0; rangeIdx < selection.rangeCount; ++rangeIdx) {
-	this.ProcessFragment(selection.getRangeAt(rangeIdx).cloneContents());
-      }
-      // Special case if the selection is completely contained inside an anchor.
-      if (this.links.length == 0 && selection.rangeCount > 0) {
-	this.ProcessAnchorAncestor(selection.anchorNode || selection.focusNode);
-      }
-      this.valid = true;
-      console.log('Done processing selection')
-    }
   }
 
-  extractor = new SelectionLinkExtractor();
-
-  function MessageHandler(msg, sender, sendResponse) {
-    console.log('Got message:', msg);
-    if (sender.id != chrome.runtime.id) {
-      return
+  processSelection() {
+    console.log('Processing selection')
+    const selection = window.getSelection();
+    if (!selection) {
+      console.log('No selection')
+      return;
     }
-    if (msg.id == 'get_links') {
-      if (extractor.valid) {
-	console.log('Reusing results');
-      } else {
-	console.log('Refreshing extractor');
-	extractor.ProcessSelection();
-      }
-      console.log('Extracted', extractor.links.length, 'links,', extractor.labels.length, 'labels')
-      sendResponse({links: extractor.links, labels: extractor.labels});
-    } else if (msg.id == 'set_highlight' &&
-	       extractor.valid &&
-	       msg.index >= 0 &&
-	       msg.index < extractor.anchors.length) {
-      for (const anchor of extractor.anchors) {
-	console.log('Unhighlighting anchor', anchor);
-	anchor.classList.remove('open_selected_links_highlight');
-      }
-      console.log('Highlighting anchor', extractor.anchors[msg.index]);
-      extractor.anchors[msg.index].classList.add('open_selected_links_highlight');
-      sendResponse();
-    } else if (msg.id == 'clear_highlights' &&
-	       extractor.valid) {
-      for (const anchor of extractor.anchors) {
-	console.log('Unhighlighting anchor', anchor);
-	anchor.classList.remove('osl_highlight');
-      }
-      sendResponse();
-    } else if (msg.id == 'shut_down') {
-      chrome.runtime.onMessage.removeListener(MessageHandler);
-      document.removeListener('selectionchange', InvalidateExtractor)
-      sendResponse();
+    for (var rangeIdx = 0; rangeIdx < selection.rangeCount; ++rangeIdx) {
+      console.log('processing range', rangeIdx + 1)
+      this.processFragment(selection.getRangeAt(rangeIdx).cloneContents());
     }
+    // Special case if the selection is completely contained inside an anchor.
+    if (this.links.length == 0 && selection.rangeCount > 0) {
+      console.log('No links yet; checking for anchor ancestor')
+      this.processAnchorAncestor(selection);
+    }
+    this.valid = true;
   }
-
-  function InvalidateExtractor() {
-    console.log('Invalidating selection');
-    extractor.valid = false;
-  }
-
-  document.addEventListener('selectionchange', InvalidateExtractor)
-  chrome.runtime.onMessage.addListener(MessageHandler);
-
-  o.installed = true
-  o.success = true
-} else {
-  o.success = true
 }
-o
+
+const extractor = new SelectionLinkExtractor();
+
+interface Message {
+  id: string,
+  index?: number
+}
+
+function handleMessage(msg: Message, sender: chrome.runtime.MessageSender, sendResponse: Function) {
+  console.log('Got message:', msg);
+  if (sender.id != chrome.runtime.id) {
+    console.log('Unexpected message', msg, 'from sender', sender);
+    return;
+  }
+  if (msg.id == 'get_links') {
+    if (extractor.valid) {
+      console.log('Reusing prior results');
+    } else {
+      console.log('Invoking extractor');
+      extractor.processSelection();
+    }
+    sendResponse({links: extractor.links, labels: extractor.labels});
+  } else if (msg.id == 'set_highlight' &&
+    extractor.valid &&
+    msg.index != undefined &&
+    msg.index >= 0 &&
+    msg.index < extractor.anchors.length) {
+    for (const anchor of extractor.anchors) {
+      anchor.classList.remove('open_selected_links_highlight');
+    }
+    extractor.anchors[msg.index].classList.add('open_selected_links_highlight');
+    sendResponse();
+  } else if (msg.id == 'clear_highlights' &&
+    extractor.valid) {
+    for (const anchor of extractor.anchors) {
+      anchor.classList.remove('osl_highlight');
+    }
+    sendResponse();
+  }
+}
+
+document.addEventListener('selectionchange', () => extractor.invalidate())
+chrome.runtime.onMessage.addListener(handleMessage);

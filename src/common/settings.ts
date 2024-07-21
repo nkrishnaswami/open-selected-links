@@ -1,46 +1,93 @@
-export const SettingSpecs = [
+export enum SettingID {
+  UseNewWindow = 'use_new_window',
+  NewTabGroupName = 'new_tab_group_name',
+  AutoDiscard = 'auto_discard',
+  Deduplicate = 'deduplicate',
+  Focus = 'focus',
+}
+
+export enum InputType {
+  Checkbox = 'checkbox',
+  Text = 'text',
+}
+
+export interface SettingSpec {
+  name: keyof Settings,
+  description: string,
+  input_type: InputType,
+  default_: string | number | boolean,
+}
+
+export interface Settings {
+ use_new_window: boolean,
+ new_tab_group_name: string,
+ auto_discard: boolean,
+ deduplicate: boolean,
+ focus: boolean,
+}
+
+export function setBoolean(settings: Settings, id: keyof Settings, value: boolean) {
+  if (id == SettingID.UseNewWindow || id == SettingID.AutoDiscard ||
+    id == SettingID.Deduplicate || id == SettingID.Focus) {
+    settings[id] = value
+  }
+}
+
+export function setString(settings: Settings, id: keyof Settings, value: string) {
+  if (id == SettingID.NewTabGroupName) {
+    settings[id] = value
+  }
+}
+
+export const settingSpecs: SettingSpec[] = [
   {
-    name: 'use_new_window',
+    name: SettingID.UseNewWindow,
     description: 'Open links in new window',
-    input_type: 'checkbox',
-    default_: true
-  }, {
-    name: 'new_tab_group_name',
-    description: 'Open links in new tab group',
-    input_type: 'text',
-    default_: ''
-  }, {
-    name: 'auto_discard',
-    description: 'Automatically snooze tabs',
-    input_type: 'checkbox',
-    default_: false
-  }, {
-    name: 'deduplicate',
-    description: 'Deduplicate links before opening',
-    input_type: 'checkbox',
-    default_: true
-  }, {
-    name: 'focus',
-    description: 'Give focus to opened tab/window',
-    input_type: 'checkbox',
+    input_type: InputType.Checkbox,
     default_: true,
   },
-];
+  {
+    name: SettingID.NewTabGroupName,
+    description: 'Open links in new tab group',
+    input_type: InputType.Text,
+    default_: '',
+  },
+  {
+    name: SettingID.AutoDiscard,
+    description: 'Automatically snooze tabs',
+    input_type: InputType.Checkbox,
+    default_: false,
+  },
+  {
+    name: SettingID.Deduplicate,
+    description: 'Deduplicate links before opening',
+    input_type: InputType.Checkbox,
+    default_: true,
+  },
+  {
+    name: SettingID.Focus,
+    description: 'Give focus to opened tab/window',
+    input_type: InputType.Checkbox,
+    default_: true,
+  },
+]
 
-export const default_settings = Object.fromEntries(
-  SettingSpecs.map(elt => [elt.name, elt.default_]));
+export const default_settings: Settings = Object.fromEntries(
+  settingSpecs.map((elt: SettingSpec) => [elt.name, elt.default_]),
+) as unknown as Settings;
 
-export const LoadSettings = async function() {
-  const settings = (await chrome.storage.local.get('settings'))?.settings
+export const loadSettings = async (): Promise<Settings> => {
+  
+  const settings = (await chrome.storage.local.get('settings'))?.settings as unknown as Settings;
   if (!settings) {
     console.log('LoadSettings: returning defaults')
   } else {
     console.log('LoadSettings: returning', settings)
   }
-  return  settings ?? default_settings;
-};
+  return settings ?? default_settings
+}
 
-export const SaveSettings = async function(settings) {
+export const saveSettings = async (settings: Settings) => {
   console.log('Saving settings', settings)
-  await chrome.storage.local.set({settings})
-};
+  await chrome.storage.local.set({ settings })
+}

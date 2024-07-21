@@ -1,130 +1,133 @@
+interface LinksAndLabels {
+  links: string[],
+  labels: string[],
+}
+
 export class OSLSession {
-  constructor(tabId, frameId) {
-    self.tabId = tabId;
-    self.frameId = frameId || 0;
-    self.script = undefined;
+  tabId: number
+  frameId: number
+  
+  constructor(tabId: number, frameId?: number) {
+    this.tabId = tabId
+    this.frameId = frameId || 0
   }
 
-  async Start() {
-    self.script = chrome.scripting ?
-      chrome.scripting.executeScript(
-        {
-          target: {frameIds: [self.frameId], tabId},
-          files: ['/scripts/get_links_in_selection.js'],
-        }) :
-      chrome.tabs.executeScript(
-        tabId,
-        {
-          frameId: self.frameId,
-          file: '/scripts/get_links_in_selection.js'
-        });
-    const results = await self.script;
-    if (!results[0].result.success) {
-      console.log({
-	'msg': 'Content script did not complete successfully',
-	'result': results[0]
-      })
-
-      throw {'msg': 'Content script did not complete successfully',
-	     'result': results[0]
-	    }
-    }
+  async getLinksAndLabels(): Promise<LinksAndLabels> {
+    const results: LinksAndLabels = await chrome.tabs.sendMessage(
+      this.tabId,
+      { id: 'get_links' },
+      { frameId: this.frameId },
+    ) as unknown as LinksAndLabels;
+    console.log(results)
+    return results
   }
 
-  async GetLinksAndLabels() {
-    const results = await chrome.tabs.sendMessage(self.tabId, {id: 'get_links'}, {frameId: self.frameId});
-    console.log(results);
-    return results;
-  }
-
-  async Highlight(index) {
+  async highlight(index: Number) {
     console.log('Highlighting', index)
-    await chrome.tabs.sendMessage({id: 'set_highlight', index})
+    await chrome.tabs.sendMessage(
+      this.tabId,
+      { id: 'set_highlight', index },
+      { frameId: this.frameId });
   }
 
-  async Unhighlight() {
-    console.log('Highlighting', index)
-    await chrome.tabs.sendMessage({id: 'clear_highlights'})
-  }
-
-  async Stop() {
-    await chrome.tabs.sendMessage({id: 'shut_down'})
-    existing_sessions.delete(self.tabId)
+  async unhighlight() {
+    console.log('Unhighlighting')
+    await chrome.tabs.sendMessage(
+      this.tabId,
+      { id: 'clear_highlights' },
+      { frameId: this.frameId });
   }
 }
 
-export const MakeTabsForLinks = async function(links, options) {
+export interface MakeTabOptions {
+  windowId?: number,
+  frameId?: number,
+  tabGroupName?: string,
+  discard?: boolean,
+  deduplicate?: boolean,
+  focus?: boolean,
+}
+
+export const makeTabsForLinks = async (links: string[], options: MakeTabOptions) => {
   if (!links || links.length === 0) {
-    console.log('No links in selection');
-    return;
+    console.log('No links in selection')
+    return
   }
-  var tabIds;
+  var tabIds: number[];
   if (options.deduplicate) {
-    links = Array.from(new Set(links));
+    links = Array.from(new Set(links))
   }
   if (options.windowId === chrome.windows.WINDOW_ID_NONE) {
-    tabIds = await CreateWindow(links, options);
+    tabIds = await createWindow(links, options)
   } else {
-    tabIds = await CreateTabs(links, options);
+    tabIds = await createTabs(links, options)
   }
-  if (options.tabGroupName != undefined) {
-    await GroupTabs(tabIds, options.windowId, options.tabGroupName);
+  if (options.tabGroupName) {
+    await groupTabs(tabIds, options.windowId, options.tabGroupName)
   }
 }
 
-const CreateWindow = async function(links, options) {
-  console.log(`Creating window with ${links.length} tabs`);
+const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
+  console.log(`Creating window with ${links.length} tabs`)
   const window = await chrome.windows.create({
     focused: options.focus,
     url: links,
-  });
-  console.log('Window details:', window);
-  options.windowId = window.id;
-  const tabIds = [];
+  })
+  console.log('Window details:', window)
+  options.windowId = window.id
+  const tabIds: number[] = []
+  if (!window.tabs) {
+    return tabIds;
+  }
   for (const tab of window.tabs) {
-    if (options.discard) {
-      chrome.tabs.discard(tab.id);
+    if (tab.id !== undefined) {
+      if (options.discard) {
+	chrome.tabs.discard(tab.id)
+      }
+      tabIds.push(tab.id)
     }
-    tabIds.push(tab.id);
   }
   if (options.focus) {
-    await chrome.tabs.update(tabIds[0], {active: true})
+    await chrome.tabs.update(tabIds[0], { active: true })
   }
-  return tabIds;
+  return tabIds
 }
 
-const CreateTabs = async function(links, options) {
-  console.log(`Creating ${links.length} tabs in window ${options.windowId}`);
-  const tabIds = [];
+const createTabs = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
+  console.log(`Creating ${links.length} tabs in window ${options.windowId}`)
+  const tabIds: number[] = []
   for (const link of links) {
-    console.log(`Creating tab for ${link}`);
+    console.log(`Creating tab for ${link}`)
     const tab = await chrome.tabs.create({
       url: link,
       windowId: options.windowId,
       active: false,
-    });
-    if (options.discard) {
-	chrome.tabs.discard(tab.id);
+    })
+    if (!tab.id) {
+      continue;
     }
-    tabIds.push(tab.id);
-    console.log('Tab:', tab);
+    if (options.discard) {
+      chrome.tabs.discard(tab.id)
+    }
+    tabIds.push(tab.id)
+    console.log('Tab:', tab)
   }
   if (options.focus) {
-    await chrome.tabs.update(tabIds[0], {active: true})
+    await chrome.tabs.update(tabIds[0], { active: true })
   }
-  return tabIds;
+  return tabIds
 }
 
-const GroupTabs = async function(tabIds, windowId, tabGroupName) {
-  console.log(`Grouping tabs with ID ${tabGroupName}: ${tabIds}`);
+const groupTabs = async (tabIds: number[], windowId: number | undefined, tabGroupName: string) => {
+  console.log(`Grouping tabs with ID ${tabGroupName}: ${tabIds}`)
   try {
-    const groupId = parseInt(options.tabGroupName);
+    const groupId = parseInt(tabGroupName)
     if (groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      console.log(`Adding ${tabIds.length} tabs to tab group {tabGroupId}}`);
-      await chrome.tabs.group({tabIds, groupId});
+      console.log(`Adding ${tabIds.length} tabs to tab group {tabGroupId}}`)
+      await chrome.tabs.group({ tabIds, groupId })
     }
   } catch (e) {
-    const groupId = await chrome.tabs.group({tabIds, createProperties: {windowId: windowId}});
-    await chrome.tabGroups.update(groupId, {title: tabGroupName});
+    const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId: windowId } })
+    await chrome.tabGroups.update(groupId, { title: tabGroupName })
   }
 }
