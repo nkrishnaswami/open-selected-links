@@ -1,5 +1,34 @@
-import {GetLinksFromSelection, MakeTabsForLinks} from './utils.js';
+import {LoadSettings} from './settings.js';
+import {OSLSession, MakeTabsForLinks} from './utils.js';
 
+const ShowError = function(title, subtitle) {
+  document.getElementById('error').innerText = title
+  if (subtitle) {
+    document.getElementById('error_sub').innerText = subtitle
+  }
+}
+
+
+const ApplySettings = async function() {
+  const setting_to_id = new Map([
+    ['use_new_window', 'new-window-checkbox'],
+    ['new_tab_group_name', 'tab-group-name'],
+    ['auto_discard', 'discard-tab-checkbox'],
+    ['deduplicate', 'deduplicate-links-checkbox'],
+    ['focus', 'focus-checkbox'],
+  ]);
+  const settings = await LoadSettings();
+  console.log('settings', settings)
+  for (const [setting, id] of setting_to_id) {
+    const element = document.getElementById(id)
+    console.log('ApplySettings:', setting, settings[setting], element)
+    if (element.type == 'checkbox') {
+      element.checked = settings[setting]
+    } else if (element.type == 'text') {
+      element.value = settings[setting] ? settings[setting] : null;
+    }
+  }
+}
 
 const GetCurrentTabId = async function() {
   try {
@@ -36,29 +65,39 @@ const OpenLinks = async function(event) {
   const links = [];
   const inputs = document.querySelectorAll('input[name="select-links"]:checked');
   console.log('OpenLinks: Checked', inputs);
-  for (const input of inputs) {
-    links.push(input.value);
-  }
   console.log('OpenLinks: Links:', links);
   const options = {
     windowId: document.getElementById('new-window-checkbox').checked ?
       chrome.windows.WINDOW_ID_NONE : chrome.windows.WINDOW_ID_CURRENT,
-    tabGroupName: document.getElementById('tab-group-name').value,
+    tabGroupName: document.getElementById('tab-group-name').value || undefined,
     discard: document.getElementById('discard-tab-checkbox').checked,
+    deduplicate: document.getElementById('deduplicate-links-checkbox').checked,
+    focus: document.getElementById('focus-checkbox').checked
   };
-  await MakeTabsForLinks(links, options);
-  window.close();
+  try {
+    await MakeTabsForLinks(links, options);
+  } catch(e) {
+    ShowError(String(e));
+    throw e
+  }
+  // window.close();
 }
 
-const AddLinkCheckboxes = async function(links, labels) {
+const AddLinkCheckboxes = async function(links, labels, session) {
   // Set up the link selector inputs.
   const formElement = document.getElementById('select-links-div');
+  const seen = new Set()
   for(var idx=0; idx < links.length; ++idx) {
     const link = links[idx];
     const label = labels[idx];
+    const duplicate = seen.has(link);
+    seen.add(link);
     console.log('RenderForm: Link is', link, 'and label is', label);
     const rowElement = document.createElement('div');
     rowElement.className = 'row';
+    if (duplicate) {
+      rowElement.classList.add('duplicate');
+    }
     formElement.appendChild(rowElement);
     const inputElement = document.createElement('input');
     inputElement.id = `input-${idx}`;
@@ -73,22 +112,33 @@ const AddLinkCheckboxes = async function(links, labels) {
     anchorElement.href = link;
     anchorElement.title = link;
     anchorElement.textContent = label.trim() || link;
+
+    labelElement.addEventListener('onmouseover', async () => {
+      console.log('mouseenter');
+      await session.Highlight(idx);
+    })
+    labelElement.addEventListener('onmouseout', async () => {
+      console.log('mouseleave');
+      await session.Unhighlight(idx)
+    });
+
+
     labelElement.appendChild(anchorElement);
     rowElement.appendChild(labelElement);
   }
 }
 
-const RenderForm = async function(links, labels) {
+const RenderForm = async function(links, labels, session) {
   if (chrome.tabGroups === undefined) {
     console.log('Tab groups not supported: hiding UI');
     document.getElementById('tab-group-ui').style.display = 'none';
   }
-  if (links == undefined || links.length == 0) {
-    document.getElementById('error').innerText = 'No links selected';
+  if (!links) {
+    ShowError('No links selected');
     document.querySelector('form[name="SelectLinks"]').style.display = 'none';
     return;
   }
-  await AddLinkCheckboxes(links, labels);
+  await AddLinkCheckboxes(links, labels, session);
 }
 
 const HighlightRegex = function(root, regex) {
@@ -216,16 +266,56 @@ const SetupTabGroupNameInput = async function() {
   console.log('Done');
 }
 
-const Main = async function() {
-  const tabId = await GetCurrentTabId();
-  console.log('Main: Getting links for tabId', tabId);
-  const {links, labels} = await GetLinksFromSelection(tabId);
-  console.log('Main: Links are', links, 'and labels are', labels);
-  SetupFilter();
-  SetupToggleButton();
-  SetupOpenButton();
-  await SetupTabGroupNameInput();
-  RenderForm(links, labels);
+const ToggleDuplicateVisibility = function() {
+  console.log('Toggling duplicate row visiblity');
+  const inputElement = document.getElementById('deduplicate-links-checkbox');
+  hide = inputElement.checked;
+  for (const duplicateRow of document.querySelectorAll('div.row.duplicate)')) {
+    if (hide) {
+      console.log('Hiding row', duplicateRow);
+      duplicateRow.class_list.add('invisible');
+    } else {
+      duplicateRow.class_list.remove('invisible');
+    }
+  }
 }
 
-Main();
+const SetupDeduplicateInput = function() {
+  const inputElement = document.getElementById('deduplicate-links-checkbox');
+  console.log('Adding listener to', inputElement);
+  inputElement.addEventListener('changed', ToggleDuplicateVisibility);
+}
+
+// Filling in form
+const Main = async () => {
+  ShowError('', '');
+  const err = {msg: 'Internal error', sub: ''};
+  try {
+    await ApplySettings();
+    const tabId = await GetCurrentTabId();
+    err.msg = 'Permissions problem'
+    err.sub = 'These can be transient; try again soon';
+    const session = new OSLSession(tabId);
+    await session.Start();
+
+    err.msg = 'Error retrieving links';
+    err.sub = '';
+    console.log('Main: Getting links for tabId', tabId);
+    const {links, labels} = await session.GetLinksAndLabels();
+    console.log('Main: Links are', links, 'and labels are', labels);
+
+    err.msg = 'Unknown error';
+    err.sub = '';
+    SetupFilter();
+    SetupToggleButton();
+    SetupOpenButton();
+    SetupDeduplicateInput();
+    await SetupTabGroupNameInput();
+    RenderForm(links, labels, session);
+  } catch(e) {
+    ShowError(err.msg, err.sub);
+    throw e;
+  }
+}
+
+await Main()

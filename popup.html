@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <title>Open Selected Links</title>
-    <script type="module" src="utils.js"></script>
-    <script type="module" src="popup.js" defer></script>
+    <script type="module" src="/src/utils.js"></script>
+    <script type="module" src="/src/popup.js" defer></script>
     <style>
       body { width: 100%; }
       .invisible { display: none; }
@@ -22,16 +22,22 @@
       }
       #error {
 	  color: red;
-	  font-size: 15vh;
+	  font-size: 36pt;
 	  text-align: center;
+      }
+      #error_sub {
+	  color: red;
+	  font-size: 24pt;
+	  text-align: left;
       }
       span.highlight {
 	  background-color: yellow
       }
-    </style>
+k    </style>
   </head>
   <body>
     <div id="error"></div>
+    <div id="error_sub"></div>
     <form name="SelectLinks">
       <div id="filter"
 	   placeholder="Filter visible links using regular expression"
@@ -53,6 +59,14 @@
 	<div id="target-discard-ui">
 	  <label for="discard-tab-checkbox">Automatically snooze tabs:</label>
 	  <input id="discard-tab-checkbox" type="checkbox">
+	</div>
+	<div id="target-deduplicate-ui">
+	  <label for="deduplicate-links-checkbox">Deduplicate links before opening:</label>
+	  <input id="deduplicate-links-checkbox" type="checkbox">
+	</div>
+	<div id="target-focus-ui">
+	  <label for="focus-checkbox">Give focus to opened tab/window (new windows may show up in front of current window):</label>
+	  <input id="focus-checkbox" type="checkbox">
 	</div>
       </fieldset>
       
