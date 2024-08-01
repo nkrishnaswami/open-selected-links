@@ -18,7 +18,6 @@ export class OSLSession {
       { id: 'get_links' },
       { frameId: this.frameId },
     ) as unknown as LinksAndLabels;
-    console.log(results)
     return results
   }
 
@@ -73,7 +72,6 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
     focused: options.focus,
     url: links,
   })
-  console.log('Window details:', window)
   options.windowId = window.id
   const tabIds: number[] = []
   if (!window.tabs) {
@@ -110,7 +108,6 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
       chrome.tabs.discard(tab.id)
     }
     tabIds.push(tab.id)
-    console.log('Tab:', tab)
   }
   if (options.focus) {
     await chrome.tabs.update(tabIds[0], { active: true })
@@ -119,14 +116,12 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
 }
 
 const groupTabs = async (tabIds: number[], windowId: number | undefined, tabGroupName: string) => {
-  console.log(`Grouping tabs with ID ${tabGroupName}: ${tabIds}`)
-  try {
-    const groupId = parseInt(tabGroupName)
+  const groupId = parseInt(tabGroupName)
+  if (!isNaN(groupId)) {
     if (groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      console.log(`Adding ${tabIds.length} tabs to tab group {tabGroupId}}`)
       await chrome.tabs.group({ tabIds, groupId })
     }
-  } catch (e) {
+  } else {
     const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId: windowId } })
     await chrome.tabGroups.update(groupId, { title: tabGroupName })
   }

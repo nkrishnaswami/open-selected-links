@@ -87,7 +87,7 @@ const openLinks = async (event: Event) => {
     showError(e)
     throw e
   }
-  // window.close();
+  window.close();
 }
 
 const addLinkCheckboxes = async (links: string[], labels: string[], session: OSLSession) => {
@@ -134,7 +134,7 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
   }
 }
 
-const renderForm = async function (links: string[], labels: string[], session: OSLSession) {
+const renderForm = async function(links: string[], labels: string[], session: OSLSession) {
   if (chrome.tabGroups === undefined) {
     console.log('renderForm: Tab groups not supported: hiding UI');
     document.getElementById('tab-group-ui')!.style.display = 'none';
@@ -148,7 +148,7 @@ const renderForm = async function (links: string[], labels: string[], session: O
   await addLinkCheckboxes(links, labels, session);
 }
 
-const highlightRegex = function (root: Element, regex: RegExp) {
+const highlightRegex = function(root: Element, regex: RegExp) {
   console.log('Matching', regex)
   const matches = Array.from((root.textContent ?? '').matchAll(regex)).reverse();
   console.log('Found', matches.length, 'matches');
@@ -219,13 +219,13 @@ const highlightRegex = function (root: Element, regex: RegExp) {
   }
 }
 
-const clearHighlights = function (root: Element) {
+const clearHighlights = function(root: Element) {
   for (const element of root.querySelectorAll('span.highlight')) {
     element.replaceWith(element.textContent ?? '');
   }
 }
 
-const setupFilter = function () {
+const setupFilter = function() {
   const filter = document.getElementById('filter')!;
   filter.focus();
   filter.addEventListener('input', () => {
@@ -250,7 +250,7 @@ const setupFilter = function () {
   })
 }
 
-const toggleVisibleLinks = function (event: Event) {
+const toggleVisibleLinks = function(event: Event) {
   for (const visibleLink of document.querySelectorAll(
     'div.row:not(.invisible) > input[name="select-links"]',
   ) as NodeListOf<HTMLInputElement>) {
@@ -258,18 +258,18 @@ const toggleVisibleLinks = function (event: Event) {
   }
 }
 
-const setupToggleButton = function () {
+const setupToggleButton = function() {
   const toggleElement = document.getElementById('toggle-button')!;
   toggleElement.addEventListener('click', toggleVisibleLinks);
 }
 
-const setupOpenButton = function () {
+const setupOpenButton = function() {
   const buttonElement = document.getElementById('open-button')!;
   console.log('Adding listener to', buttonElement);
   buttonElement.addEventListener('click', openLinks);
 }
 
-const setupTabGroupNameInput = async function () {
+const setupTabGroupNameInput = async function() {
   const listElement = document.getElementById('tab-group-list')!;
   console.log('Adding tab groups to', listElement);
   const tabGroups = await getAllTabGroups();
@@ -283,7 +283,7 @@ const setupTabGroupNameInput = async function () {
   console.log('Done');
 }
 
-const toggleDuplicateVisibility = function () {
+const toggleDuplicateVisibility = function() {
   console.log('Toggling duplicate row visiblity');
   const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
   const hide = inputElement.checked;
@@ -297,7 +297,7 @@ const toggleDuplicateVisibility = function () {
   }
 }
 
-const setupDeduplicateInput = function () {
+const setupDeduplicateInput = function() {
   const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
   console.log('Adding listener to', inputElement);
   inputElement.addEventListener('changed', toggleDuplicateVisibility)

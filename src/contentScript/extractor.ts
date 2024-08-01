@@ -20,14 +20,14 @@ export class SelectionLinkExtractor {
   processFragment(documentFragment: DocumentFragment) {
     for (const anchor of documentFragment.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>) {
       try {
-      var url = new URL(anchor.href, window.location.href);
-      if (url.protocol.startsWith('http')) {
-	this.links.push(url.href);
-	if (this.debug) { console.log('anchor:', anchor) };
-	this.labels.push(anchor.textContent?.trim() ?? '[empty]');
-	this.anchors.push(anchor);
-      }
-      } catch(e: Any) {
+	var url = new URL(anchor.href, window.location.href);
+	if (url.protocol.startsWith('http')) {
+	  this.links.push(url.href);
+	  if (this.debug) { console.log('anchor:', anchor) };
+	  this.labels.push(anchor.textContent?.trim() ?? '[empty]');
+	  this.anchors.push(anchor);
+	}
+      } catch(e) {
 	console.log('Invalid URL', anchor.href);
       }
     }
@@ -39,12 +39,11 @@ export class SelectionLinkExtractor {
     if (this.debug) { console.log('processing anchor ancestor') }
     if (node) {
       if (this.debug) { console.log('processing node', node) }
+      const element = node instanceof Element ? node as Element : node.parentElement!;
       // See if we are in an anchor.
-      const result = document.evaluate(
-	'ancestor::a', node, null,
-	XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      if (result.singleNodeValue != null) {
-	const anchor = result.singleNodeValue as HTMLAnchorElement;
+      const result = element.closest('a')
+      if (result != null) {
+	const anchor = result as HTMLAnchorElement;
 	var url = new URL(anchor.href, window.location.href);
 	console.debug(`Considering ${url.href}`);
 	if (url.protocol.startsWith('http')) {
