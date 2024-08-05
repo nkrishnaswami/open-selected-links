@@ -8,6 +8,7 @@
 * Add persistent settings
   - no longer forced to re-select options in the popup.
   - can customize affect context menu clicks.
+  - **Requires `storage` permissions.**
 * Command and menu item handlers share code.
 * Refactored content script
   - now persistent, and communicates with extension via messages.
