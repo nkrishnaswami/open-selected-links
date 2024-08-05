@@ -75,6 +75,7 @@ const processOSLRequest = async (osl_request_id: OSLRequestID, tab: chrome.tabs.
     return;
   }
   const session = new OSLSession(tab.id, frame_id);
+  await session.setup();
   const {links} = await session.getLinksAndLabels();
   await makeTabsForLinks(links, options);
 }

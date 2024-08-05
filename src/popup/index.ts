@@ -100,12 +100,22 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
     const duplicate = seen.has(link);
     seen.add(link);
     console.log('addLinkCheckboxes: Link is', link, 'and label is', label);
+
     const rowElement = document.createElement('div');
     rowElement.className = 'row';
     if (duplicate) {
       rowElement.classList.add('duplicate');
     }
+    rowElement.addEventListener('onmouseover', async () => {
+      console.log('mouseover');
+      await session.highlight(idx);
+    })
+    rowElement.addEventListener('onmouseout', async () => {
+      console.log('mouseout');
+      await session.unhighlight();
+    })
     formElement.appendChild(rowElement);
+
     const inputElement = document.createElement('input');
     inputElement.id = `input-${idx}`;
     inputElement.type = 'checkbox';
@@ -119,16 +129,6 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
     anchorElement.href = link;
     anchorElement.title = link;
     anchorElement.textContent = label.trim() || link;
-
-    labelElement.addEventListener('onmouseenter', async () => {
-      console.log('mouseenter');
-      await session.highlight(idx);
-    })
-    labelElement.addEventListener('onmouseleave', async () => {
-      console.log('mouseleave');
-      await session.unhighlight();
-    })
-
     labelElement.appendChild(anchorElement);
     rowElement.appendChild(labelElement);
   }
@@ -320,6 +320,7 @@ const main = async () => {
     err.msg = 'Permissions problem';
     err.sub = 'These can be transient; try again soon';
     const session = new OSLSession(tabId);
+    await session.setup();
 
     err.msg = 'Error retrieving links';
     err.sub = '';

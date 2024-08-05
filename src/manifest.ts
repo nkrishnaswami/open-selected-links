@@ -19,12 +19,6 @@ export default defineManifest({
     default_title: 'Open Selected Links',
     default_icon: 'img/icon48.png',
   },
-  content_scripts: [
-    {
-      matches: ['http://*/*', 'https://*/*', 'file://*/*'],
-      js: ['src/contentScript/index.ts'],
-    },
-  ],
   commands: {
     osl_in_tabs: {
       description: 'Open selected links in new tabs in the current window',
@@ -42,11 +36,5 @@ export default defineManifest({
     32: 'img/icon32.png',
     48: 'img/icon48.png',
     128: 'img/icon128.png',
-  },
-  web_accessible_resources: [
-    {
-      resources: ['img/icon16.png', 'img/icon32.png', 'img/icon48.png', 'img/icon128.png'],
-      matches: [],
-    },
-  ],
+  }
 })

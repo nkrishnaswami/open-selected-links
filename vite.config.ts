@@ -14,12 +14,12 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
 	  format: 'module',
-          chunkFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name].js',
 	  manualChunks: {
 	    'common': ['src/common/extract-links.ts', 'src/common/settings.ts'],
 	    'background': ['src/background/index.ts'],
-	    'contentScript': ['src/contentScript/index.ts', 'src/contentScript/index.css'],
-	    'options': ['src/options/index.ts', 'src/options/index.css'],
+	    'contentScript': ['src/contentScript/index.ts', 'src/contentScript/extractor.ts'],
+	    'options': ['src/options/index.ts'],
 	    'popup': ['src/popup/index.ts'],
 	  },
         },

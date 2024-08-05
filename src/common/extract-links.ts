@@ -1,3 +1,6 @@
+import contentScriptPath from '../contentScript/index?script';
+import contentCss from '../contentScript/index.css?inline';
+
 interface LinksAndLabels {
   links: string[],
   labels: string[],
@@ -6,35 +9,63 @@ interface LinksAndLabels {
 export class OSLSession {
   tabId: number
   frameId: number
-  
+
   constructor(tabId: number, frameId?: number) {
-    this.tabId = tabId
-    this.frameId = frameId || 0
+    this.tabId = tabId;
+    this.frameId = frameId || 0;
+  }
+
+  async setup() {
+    try {
+      const response = await chrome.tabs.sendMessage(
+	this.tabId,
+	{id: 'ping'},
+	{frameId: this.frameId});
+      if (response != 'ack') {
+	throw new Error('Unexpected response; reinjecting content script')
+      }
+    } catch(e) {
+      console.log(e)
+      console.log('inserting CSS')
+      await chrome.scripting.insertCSS({
+	css: contentCss,
+	target: {tabId: this.tabId, frameIds: [this.frameId]},
+      });
+      console.log('executing script')
+      await chrome.scripting.executeScript({
+	files: [contentScriptPath],
+	target: {tabId: this.tabId, frameIds: [this.frameId]}
+      });
+      console.log('script executed')
+      await new Promise((resolve, reject) => {setTimeout(() => {resolve(void 1);}, 10)});
+      console.log('yielded and returned')      
+    }
   }
 
   async getLinksAndLabels(): Promise<LinksAndLabels> {
-    const results: LinksAndLabels = await chrome.tabs.sendMessage(
+    await this.setup();
+    const results = await chrome.tabs.sendMessage(
       this.tabId,
-      { id: 'get_links' },
-      { frameId: this.frameId },
-    ) as unknown as LinksAndLabels;
-    return results
+      {id: 'get_links'},
+      {frameId: this.frameId});
+    console.log('results:', results)
+    return results as LinksAndLabels;
   }
 
-  async highlight(index: Number) {
+  async highlight(index: number) {
     console.log('Highlighting', index)
     await chrome.tabs.sendMessage(
       this.tabId,
-      { id: 'set_highlight', index },
-      { frameId: this.frameId });
+      {id: 'set_highlight', index: index},
+      {frameId: this.frameId});
   }
 
   async unhighlight() {
     console.log('Unhighlighting')
     await chrome.tabs.sendMessage(
       this.tabId,
-      { id: 'clear_highlights' },
-      { frameId: this.frameId });
+      {id: 'clear_highlights'},
+      {frameId: this.frameId});
   }
 }
 
@@ -110,6 +141,7 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
     tabIds.push(tab.id)
   }
   if (options.focus) {
+    console.log('Making first tab active');
     await chrome.tabs.update(tabIds[0], { active: true })
   }
   return tabIds
@@ -119,9 +151,11 @@ const groupTabs = async (tabIds: number[], windowId: number | undefined, tabGrou
   const groupId = parseInt(tabGroupName)
   if (!isNaN(groupId)) {
     if (groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      console.log('Grouping tabs in existing group');
       await chrome.tabs.group({ tabIds, groupId })
     }
   } else {
+    console.log('Grouping tabs in new group', tabGroupName);
     const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId: windowId } })
     await chrome.tabGroups.update(groupId, { title: tabGroupName })
   }

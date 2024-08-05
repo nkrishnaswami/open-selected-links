@@ -13,22 +13,27 @@ interface Message {
   index?: number,
 }
 
-
-const mockSendMessage = mock(async (tabId: number, msg: Object, frameId: number) => {
-  if (msg.id == 'get_links') {
-    return {'links': ['http://localhost/a'], 'labels': ['a']}
-  } else if (msg.id == 'set_highlight') {
-  } else if (msg.id == 'clear_highlights') {
+const fakeExecuteScript = async ({
+  args: {mode},
+  target: {tabId, frameId}
+}) => {
+  if (mode == 'get_links') {
+    return [{result: {'links': ['http://localhost/a'], 'labels': ['a']}}]
+  } else if (mode == 'set_highlight') {
+    return [{result: undefined}];
+  } else if (mode == 'clear_highlights') {
+    return [{result: undefined}];
   } else {
     throw Error(`Invalid message: ${msg}`)
   }
-})
-
+};
 
 test('getting links and labels', async () => {
+  chrome.scripting = {
+    executeScript: mock(fakeExecuteScript),
+  }
   const session = new OSLSession(1);
   expect(session.tabId).toEqual(1)
-  chrome.tabs.sendMessage = mockSendMessage;
   const {links, labels} = await session.getLinksAndLabels();
   expect(links).toHaveLength(1);
   expect(links).toContain('http://localhost/a')
@@ -37,13 +42,24 @@ test('getting links and labels', async () => {
 
 
 test('highlighting', async () => {
+  chrome.scripting = {
+    executeScript: mock(fakeExecuteScript),
+    insertCSS: mock(),
+    removeCSS: mock(),
+  }
   const session = new OSLSession(1);
   expect(session.tabId).toEqual(1)
-  chrome.tabs.sendMessage = mockSendMessage;
   const {links, labels} = await session.getLinksAndLabels();
   expect(links).toHaveLength(1);
   await session.highlight(0);
+  expect(chrome.scripting.insertCSS.mock.calls.length).toEqual(1)
+  await session.highlight(0);
+  expect(chrome.scripting.insertCSS.mock.calls.length).toEqual(1)
   await session.unhighlight();
+  await session.removeCSS();
+  expect(chrome.scripting.removeCSS.mock.calls.length).toEqual(1)
+  await session.removeCSS();
+  expect(chrome.scripting.removeCSS.mock.calls.length).toEqual(1)
 })
 
 const BASE_WINDOW_ID = 1;
