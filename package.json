@@ -35,5 +35,9 @@
     "vite": "^4.4.11",
     "vitest": "^2.0.3",
     "vitest-chrome": "^0.1.0"
+  },
+  "openSelectedLinks": {
+    "extension_id": "fklbicgdocbmcjmmbmnbbefhjneiecan",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoVSLPbrAPwtiuV85/7TmiCyz7O6kyrbpWwpqiglqSw6faZkxd+mR7pmn+nYvM7Y9oxIdFpMGKC4z5U8O75bXSJb6jQ94GXknjWmEQVefg3oz958LCb837XQXxbRsOkzS2EZd2XnD8uRAdZmXM4SQUvPQ3EZu7JFjEEdStCOuSnzxvqVG86mIYsx/ebrEJSoCVTznu3BoM87J4u3b4KqzPyk1GoAr8fhTMvILqPsTdQQyK78QjZ40h0/5Trcfe9+qpiTW/nB6lK+2suRJZWb8RTisKnRjLXxpa7kVsk03Skr4LTcsHVyQFdsuGG8WavPz4PY3j3cLK+S6gPBM1M2+vwIDAQAB"
   }
 }
