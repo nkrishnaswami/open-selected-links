@@ -1,9 +1,9 @@
 {
-  "name": "Open Selected Links Beta",
-  "displayName": "Open Selected Links Beta",
+  "name": "Open Selected Links",
+  "displayName": "Open Selected Links",
   "version": "1.8.0",
   "author": "Natarajan Krishnaswami <natarajan+osl@krishnaswami.org>",
-  "description": "Opens multiple links in the selected content in the current or new window or a tab group.  BETA TESTING RELEASE",
+  "description": "Opens multiple links in the selected content in the current or new window or a tab group.",
   "type": "module",
   "license": "apache-2.0",
   "keywords": [
