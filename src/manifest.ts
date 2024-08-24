@@ -36,5 +36,6 @@ export default defineManifest({
     32: 'img/icon32.png',
     48: 'img/icon48.png',
     128: 'img/icon128.png',
-  }
+  },
+  key: packageData.openSelectedLinks.key,
 })
