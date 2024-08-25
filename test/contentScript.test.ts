@@ -1,4 +1,5 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
+import { chrome } from 'vitest-chrome';
 import { SelectionLinkExtractor } from '../src/contentScript/extractor';
 
 
@@ -19,6 +20,9 @@ const doc1 = `<ol id="ol1">
 
 
 test('select whole document', () => {
+  // vitest --dom sets the location to its server URL; we want to test
+  // these bare URLs with the relative URLs omitted.
+  window.location.href = 'file:///testdoc.html';
   document.body.innerHTML = doc1;
 
   const extractor = new SelectionLinkExtractor();
@@ -40,6 +44,41 @@ test('select whole document', () => {
     'A1',
     'A2',
     'A3',
+    'A6',
+    'B1',
+    'C',
+    'B2',
+    'D1',
+  ]);
+});
+
+test('select whole document with BASE', () => {
+  window.location.href = 'https://fancy.server/deep/link/doc.html';
+  document.body.innerHTML = doc1;
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/a',
+    'http://localhost/a',
+    'http://localhost/a',
+    'https://fancy.server/deep/link/a',
+    'https://fancy.server/deep/link/a',
+    'http://localhost/a',
+    'http://localhost/b',
+    'http://localhost/c',
+    'http://localhost/b',
+    'http://localhost/d',
+  ]);
+  expect(extractor.labels).toEqual([
+    'A1',
+    'A2',
+    'A3',
+    'A4',
+    'A5',
     'A6',
     'B1',
     'C',

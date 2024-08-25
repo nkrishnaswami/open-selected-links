@@ -18,9 +18,11 @@ export class SelectionLinkExtractor {
   }
 
   processFragment(documentFragment: DocumentFragment) {
+    const base = document.head.querySelector('base');
+    const baseURL = base ? base.href : window.location.href;
     for (const anchor of documentFragment.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>) {
       try {
-	var url = new URL(anchor.href, window.location.href);
+	var url = new URL(anchor.href, baseURL);
 	if (url.protocol.startsWith('http')) {
 	  this.links.push(url.href);
 	  if (this.debug) { console.log('anchor:', anchor) };

@@ -31,8 +31,10 @@ const applySettings = async () => {
 const URL_PARAMS  = new URLSearchParams(window.location.search);
 
 const getCurrentTabId = async () => {
-  if (URL_PARAMS.has("tab")) {
-    return parseInt(URL_PARAMS.get("tab"));
+  const tabId = URL_PARAMS.get("tab");
+  if (tabId != null) {
+    console.log('getCurrentTabId: using query tabId:', tabId)
+    return parseInt(tabId);
   }
   try {
     const [tab] = await chrome.tabs.query({

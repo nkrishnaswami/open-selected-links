@@ -22,7 +22,7 @@ export class OSLSession {
 	{id: 'ping'},
 	{frameId: this.frameId});
       if (response != 'ack') {
-	throw new Error('Unexpected response; reinjecting content script')
+	throw new Error(`Unexpected response; reinjecting content script: ${response}`)
       }
     } catch(e) {
       console.log(e)
