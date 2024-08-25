@@ -37,5 +37,9 @@ export default defineManifest({
     48: 'img/icon48.png',
     128: 'img/icon128.png',
   },
+  web_accessible_resources: [{
+    'resources': ['html/popup.html'],
+    'matches': ['*://*/*']
+  }],
   key: packageData.openSelectedLinks.key,
 })

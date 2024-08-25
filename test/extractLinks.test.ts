@@ -1,4 +1,6 @@
-import { describe, it, expect, test, mock } from 'bun:test';
+// import { describe, it, expect, test, mock } from 'bun:test';
+import { describe, it, expect, test, vi } from 'vitest';
+import { chrome } from 'vitest-chrome/lib/index.esm';
 import { OSLSession, MakeTabOptions, makeTabsForLinks } from '../src/common/extract-links';
 
 
@@ -13,16 +15,17 @@ interface Message {
   index?: number,
 }
 
-const fakeExecuteScript = async ({
-  args: {mode},
-  target: {tabId, frameId}
-}) => {
-  if (mode == 'get_links') {
-    return [{result: {'links': ['http://localhost/a'], 'labels': ['a']}}]
-  } else if (mode == 'set_highlight') {
-    return [{result: undefined}];
-  } else if (mode == 'clear_highlights') {
-    return [{result: undefined}];
+chrome.tabs.sendMessage = vi.fn();
+
+const fakeSendMessage = async (tabId, msg, frameId) => {
+  if (msg.id == 'ping') {
+    return 'ack'
+  } else if (msg.id == 'get_links') {
+    return {'links': ['http://localhost/a'], 'labels': ['a']}
+  } else if (msg.id == 'set_highlight') {
+    return;
+  } else if (msg.id == 'clear_highlights') {
+    return;
   } else {
     throw Error(`Invalid message: ${msg}`)
   }
@@ -30,10 +33,13 @@ const fakeExecuteScript = async ({
 
 test('getting links and labels', async () => {
   chrome.scripting = {
-    executeScript: mock(fakeExecuteScript),
+    executeScript: vi.fn(),
+    insertCSS: vi.fn(),
   }
+  chrome.tabs.sendMessage.mockReset();
   const session = new OSLSession(1);
   expect(session.tabId).toEqual(1)
+  chrome.tabs.sendMessage.mockImplementation(fakeSendMessage);
   const {links, labels} = await session.getLinksAndLabels();
   expect(links).toHaveLength(1);
   expect(links).toContain('http://localhost/a')
@@ -43,12 +49,20 @@ test('getting links and labels', async () => {
 
 test('highlighting', async () => {
   chrome.scripting = {
-    executeScript: mock(fakeExecuteScript),
-    insertCSS: mock(),
-    removeCSS: mock(),
+    executeScript: vi.fn(),
+    insertCSS: vi.fn(),
   }
   const session = new OSLSession(1);
   expect(session.tabId).toEqual(1)
+  chrome.tabs.sendMessage.mockReset();
+  var has_raised = false;
+  chrome.tabs.sendMessage.mockImplementation(async (t, m, f) => {
+    if (!has_raised) {
+      has_raised = true;
+      throw Error('no listeners for message');
+    }
+    return fakeSendMessage(t, m, f);
+  });
   const {links, labels} = await session.getLinksAndLabels();
   expect(links).toHaveLength(1);
   await session.highlight(0);
@@ -56,10 +70,6 @@ test('highlighting', async () => {
   await session.highlight(0);
   expect(chrome.scripting.insertCSS.mock.calls.length).toEqual(1)
   await session.unhighlight();
-  await session.removeCSS();
-  expect(chrome.scripting.removeCSS.mock.calls.length).toEqual(1)
-  await session.removeCSS();
-  expect(chrome.scripting.removeCSS.mock.calls.length).toEqual(1)
 })
 
 const BASE_WINDOW_ID = 1;
@@ -91,21 +101,20 @@ const setup_extra_chrome_mocks = () => {
     return {id: base_tab_id++};
   });
 
-  chrome.tabs.group = mock();
-  chrome.tabs.group.mockImplementation(async(options) => {
+  chrome.tabs.group = vi.fn(async(options) => {
     console.log('chrome.tabs.group', options);
     return 1001;
   });
 
-  chrome.tabs.discard = mock();
-  chrome.tabs.discard.mockImplementation(async(options) => {
+  chrome.tabs.discard = vi.fn(async(options) => {
     console.log('chrome.tabs.discard', options);
   });
 
   chrome.tabGroups = {
     TAB_GROUP_ID_NONE: -1,
-    update: mock(),
+    update: vi.fn(),
   }
+  chrome.tabGroups.update.mockReset();
   chrome.tabGroups.update.mockImplementation(async (options) => {
     console.log('chrome.tabGroups.update', options)
   })

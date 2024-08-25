@@ -15,25 +15,27 @@
     "node": ">=14.18.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "bunx --bun vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "preview": "bunx --bun vite preview",
     "fmt": "prettier --write '**/*.{ts,json,css,scss,md}'",
-    "zip": "npm run build && node src/zip.js"
+    "zip": "bunx --bun build && bunx --bun src/zip.js",
+    "test": "bunx --bun vitest run",
+    "coverage": "bunx --bun vitest run --coverage"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.0.0-beta.19",
+    "@crxjs/vite-plugin": "^2.0.0-beta.25",
     "@happy-dom/global-registrator": "^14.12.3",
     "@types/chrome": "^0.0.246",
     "@types/jsdom": "^21.1.7",
     "@types/puppeteer": "^7.0.4",
-    "@vitest/coverage-v8": "^2.0.3",
+    "@vitest/coverage-v8": "^2.0.5",
     "gulp": "^4.0.2",
     "gulp-zip": "^6.0.0",
-    "prettier": "^3.0.3",
-    "typescript": "^5.2.2",
-    "vite": "^4.4.11",
-    "vitest": "^2.0.3",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "vite": "^4.5.3",
+    "vitest": "^2.0.5",
     "vitest-chrome": "^0.1.0"
   },
   "openSelectedLinks": {

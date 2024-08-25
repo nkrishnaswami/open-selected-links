@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import { crx } from '@crxjs/vite-plugin'
 import manifest from './src/manifest'
@@ -25,7 +26,10 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-
     plugins: [crx({ manifest })],
+    test: {
+      include: ['test/**/*.test.ts'],
+      setupFiles: './vitest.init.ts',
+    },
   }
 })
