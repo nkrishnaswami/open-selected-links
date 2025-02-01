@@ -16,6 +16,8 @@ const applySettings = async () => {
     [SettingID.AutoDiscard, 'discard-tab-checkbox'],
     [SettingID.Deduplicate, 'deduplicate-links-checkbox'],
     [SettingID.Focus, 'focus-checkbox'],
+    [SettingID.PopupHideDuplicates, 'hide-duplicates-checkbox'],
+    [SettingID.PopupMatchUrls, 'filter-urls-checkbox'],
   ];
   for (const [setting, id] of settingToInput) {
     const element = document.getElementById(id) as HTMLInputElement;
@@ -28,7 +30,7 @@ const applySettings = async () => {
   }
 }
 
-const URL_PARAMS  = new URLSearchParams(window.location.search);
+const URL_PARAMS = new URLSearchParams(window.location.search);
 
 const getCurrentTabId = async () => {
   const tabId = URL_PARAMS.get("tab");
@@ -135,7 +137,8 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
     const anchorElement = document.createElement('a');
     anchorElement.href = link;
     anchorElement.title = link;
-    anchorElement.textContent = label.trim() || link;
+    const trimmedLabel = label.trim();
+    anchorElement.textContent = trimmedLabel ? trimmedLabel : link
     labelElement.appendChild(anchorElement);
     rowElement.appendChild(labelElement);
   }
@@ -232,29 +235,50 @@ const clearHighlights = function(root: Element) {
   }
 }
 
+const filterRows = function() {
+  const filterInput = document.getElementById('filter')!;
+  const filterUrlsCheckbox = document.getElementById('filter-urls-checkbox')! as HTMLInputElement;
+  const hideDuplicatesCheckbox = document.getElementById('hide-duplicates-checkbox')! as HTMLInputElement;
+
+  const needle = new RegExp(filterInput.innerText, 'ig');
+  const filterUrls = filterUrlsCheckbox.checked;
+  const hideDuplicates = hideDuplicatesCheckbox.checked;
+  console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
+
+  const shouldShow = (row: Element) => {
+    const isDuplicate = row.classList.contains('duplicate')
+    const haystack = (filterUrls ? row.querySelector('a')?.href : row.textContent) ?? '';
+    const isMatch = haystack.match(needle);
+    if (hideDuplicates) {
+      return isMatch && !isDuplicate;
+    }
+    return isMatch;
+  }
+
+  for (const row of document.querySelectorAll('div.row')) {
+    if (shouldShow(row)) {
+      console.log('Showing');
+      row.classList.remove('invisible');
+    } else {
+      console.log('Hiding');
+      row.classList.add('invisible');
+    }
+  }
+  clearHighlights(document.getElementById('select-links-div')!);
+  if (filterInput.innerText.length != 0) {
+    highlightRegex(document.getElementById('select-links-div')!, needle)
+  }
+};
+
 const setupFilter = function() {
-  const filter = document.getElementById('filter')!;
-  filter.focus();
-  filter.addEventListener('input', () => {
-    console.log(`filter change event: value is ${filter.innerText}`);
-    for (const row of document.querySelectorAll('div.row')) {
-      console.log('Processing', row);
-      if ((row.textContent ?? '').match(RegExp(filter.innerText, 'i'))) {
-        console.log('Showing');
-        row.classList.remove('invisible');
-      } else {
-        console.log('Hiding');
-        row.classList.add('invisible');
-      }
-    }
-    clearHighlights(document.getElementById('select-links-div')!);
-    if (filter.innerText.length != 0) {
-      highlightRegex(
-        document.getElementById('select-links-div')!,
-        new RegExp(filter.innerText, 'ig'),
-      );
-    }
-  })
+  const filterInput = document.getElementById('filter')!;
+  const filterUrlsCheckbox = document.getElementById('filter-urls-checkbox')!;
+  const hideDuplicatesCheckbox = document.getElementById('hide-duplicates-checkbox')!;
+
+  filterInput.focus();
+  filterInput.addEventListener('input', filterRows);
+  filterUrlsCheckbox.addEventListener('change', filterRows);
+  hideDuplicatesCheckbox.addEventListener('change', filterRows)
 }
 
 const toggleVisibleLinks = function(event: Event) {
@@ -290,26 +314,6 @@ const setupTabGroupNameInput = async function() {
   console.log('Done');
 }
 
-const toggleDuplicateVisibility = function() {
-  console.log('Toggling duplicate row visiblity');
-  const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
-  const hide = inputElement.checked;
-  for (const duplicateRow of document.querySelectorAll('div.row.duplicate)')) {
-    if (hide) {
-      console.log('Hiding row', duplicateRow);
-      duplicateRow.classList.add('invisible');
-    } else {
-      duplicateRow.classList.remove('invisible');
-    }
-  }
-}
-
-const setupDeduplicateInput = function() {
-  const inputElement = document.getElementById('deduplicate-links-checkbox')! as HTMLInputElement;
-  console.log('Adding listener to', inputElement);
-  inputElement.addEventListener('changed', toggleDuplicateVisibility)
-}
-
 // Filling in form
 const main = async () => {
   showError('', '');
@@ -340,7 +344,6 @@ const main = async () => {
     setupFilter();
     setupToggleButton();
     setupOpenButton();
-    setupDeduplicateInput();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);
   } catch (e) {

@@ -14,7 +14,17 @@
 	   style="border: 1px solid black; width: 99vw"
 	   contenteditable></div>
       <fieldset>
+	<div id="filter-urls-ui">
+	  <label for="filter-urls-checkbox">Match URLs as well as link text:</label>
+	  <input id="filter-urls-checkbox" type="checkbox">
+	</div>
+	<div id="hide-duplicates-ui">
+	  <label for="hide-duplicates-checkbox">Hide links with duplicate URLs (show first only):</label>
+	  <input id="hide-duplicates-checkbox" type="checkbox">
+	</div>
 	<button type="button" id="toggle-button">Toggle visible links</button>
+      </fieldset>
+      <fieldset>
 	<div id="target-window-ui">
 	  <label for="new-window-checkbox">Open links in new window:</label>
 	  <input id="new-window-checkbox" type="checkbox" checked>
