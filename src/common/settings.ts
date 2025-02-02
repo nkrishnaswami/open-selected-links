@@ -4,6 +4,8 @@ export enum SettingID {
   AutoDiscard = 'auto_discard',
   Deduplicate = 'deduplicate',
   Focus = 'focus',
+  PopupHideDuplicates = 'popup_hide_duplicates',
+  PopupMatchUrls = 'popup_match_urls',
 }
 
 export enum InputType {
@@ -19,16 +21,19 @@ export interface SettingSpec {
 }
 
 export interface Settings {
- use_new_window: boolean,
- new_tab_group_name: string,
- auto_discard: boolean,
- deduplicate: boolean,
- focus: boolean,
+  use_new_window: boolean,
+  new_tab_group_name: string,
+  auto_discard: boolean,
+  deduplicate: boolean,
+  focus: boolean,
+  popup_hide_duplicates: boolean,
+  popup_match_urls: boolean,
 }
 
 export function setBoolean(settings: Settings, id: keyof Settings, value: boolean) {
   if (id == SettingID.UseNewWindow || id == SettingID.AutoDiscard ||
-    id == SettingID.Deduplicate || id == SettingID.Focus) {
+    id == SettingID.Deduplicate || id == SettingID.Focus ||
+    id == SettingID.PopupHideDuplicates || id == SettingID.PopupMatchUrls) {
     settings[id] = value
   }
 }
@@ -70,6 +75,18 @@ export const settingSpecs: SettingSpec[] = [
     input_type: InputType.Checkbox,
     default_: true,
   },
+  {
+    name: SettingID.PopupHideDuplicates,
+    description: 'In the popup, hide links with duplicate URLs (show the first only)',
+    input_type: InputType.Checkbox,
+    default_: false,
+  },
+  {
+    name: SettingID.PopupMatchUrls,
+    description: 'In the popup, match URLs as well as link text',
+    input_type: InputType.Checkbox,
+    default_: false,
+  },
 ]
 
 export const default_settings: Settings = Object.fromEntries(
@@ -77,7 +94,7 @@ export const default_settings: Settings = Object.fromEntries(
 ) as unknown as Settings;
 
 export const loadSettings = async (): Promise<Settings> => {
-  
+
   const settings = (await chrome.storage.local.get('settings'))?.settings as unknown as Settings;
   if (!settings) {
     console.log('LoadSettings: returning defaults')

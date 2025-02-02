@@ -31,21 +31,17 @@ test("Extension has service worker", async () => {
   );
   const serviceWorker = await serviceWorkerTarget.worker();
   expect(serviceWorker).toBeTruthy;
-}, 30000);
+}, 3000);
 
 
 test("Extension registers rules", async () => {
   const page = await browser.newPage();
   await page.goto(`chrome-extension://${EXTENSION_ID}/html/popup.html`);
  
-  expect(page.evaluate(`() => {
-    chrome.runtime.chrome.contextMenus.onClicked.hasListener(
-      handleOpenSelectedLinkMenuClick);
-  }`)).isTrue;
-  expect(page.evaluate(`() => {
-    chrome.runtime.chrome.contextMenus.onClicked.hasListener(
-      handleOpenSelectedLinksCommand);
-  }`)).isTrue;
+  expect(page.evaluate(`chrome.contextMenus.onClicked.hasListener(
+    handleOpenSelectedLinkMenuClick)`)).toBeTruthy;
+  expect(page.evaluate(`chrome.commands.onCommand.hasListener(
+    handleOpenSelectedLinksCommand)`)).toBeTruthy;
 });
 
 test("Context menu works", async () => {});
