@@ -1,3 +1,14 @@
+# Version 1.8.2
+* Add side-by-side mode
+* Multiple-display support
+* These were making the config take up too much of the popup, so I
+  added a hamburger icon to hide/show the config options
+* Filter enhancements
+  * Disallow inserting newlines.
+  * Don't crash if partially entered regexps are invalid
+  * Make the placeholder text come back on deleting all the text
+  * Make the filter URLs checkbox actuaal search both URL and link text
+  * Give the filter focus if any keys are pressed
 # Version 1.8.1
 * Popup enhancements:
   * Allow filter to match URLs as well as link text

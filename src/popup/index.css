@@ -1,14 +1,73 @@
-body { width: 100%; }
+body {
+    width: 760px;
+    height: 560px;
+    max-width: 760px;
+    max-height: 560px;
+}
 
 .invisible { display: none; }
+
+form {
+    display: flex;
+    flex-direction: column;
+    max-width: 97vw;
+    max-height: 97vh;
+}
+
+form * {
+    max-width: inherit;
+}
+
+#hamburger-row {
+    width: inherit;
+    display: flex;
+    flex-direction: row;
+}
+
+#hamburger-caption {
+    position: absolute;
+    left: 30px;
+}
+
+#hamburger {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1ex;;
+}
+
+#hamburger.hamburger-closed {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 1ex;;
+}
+
+#hamburger div {
+    width: 18px;
+    height: 3px;
+    background-color: black;
+    margin: 2px 0;
+}
+
+#hamburger.hamburger-closed div {
+    width: 3px;
+    height: 18px;
+    background-color: black;
+    margin: 0 2px;
+}
+
+#config-container.config-closed {
+    display: none;
+}
 
 [placeholder]:empty::before {
     content: attr(placeholder);
     color: #555;
 }
 
-[placeholder]:empty:focus::before {
-    content: "";
+#filter {
+    display: inline-block;
+    border: 1px solid black;
+    width: 94vw;
 }
 
 #tab-group-ui {
@@ -17,6 +76,19 @@ body { width: 100%; }
 
 #tab-group-ui input {
     flex: 1 1 auto;
+}
+
+#open-button {
+    margin: 1em;
+}
+
+#select-links-div {
+    overflow-y: scroll;
+    flex: 1 1 auto;
+    border-style: groove;
+    border-width: 2px;
+    border-image: black;
+    border
 }
 
 #error {

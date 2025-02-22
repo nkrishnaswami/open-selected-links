@@ -1,10 +1,19 @@
 import './index.css';
 import { OSLSession, makeTabsForLinks } from '../common/extract-links.js'
+import type { MakeTabOptions } from '../common/extract-links.js'
 import { loadSettings, InputType, SettingID, Settings } from '../common/settings.js'
+
+const DisplayInfo = new Map<string, chrome.system.display.DisplayInfo>(
+  (await chrome.system.display.getInfo())
+    .map(info => [info.id, info]));
 
 const showError = (title: string, subtitle?: string) => {
   document.getElementById('error')!.innerText = title;
   document.getElementById('error_sub')!.innerText = subtitle ?? '';
+}
+
+function getInput(id: string): HTMLInputElement {
+  return document.getElementById(id)! as HTMLInputElement;
 }
 
 const applySettings = async () => {
@@ -20,7 +29,7 @@ const applySettings = async () => {
     [SettingID.PopupMatchUrls, 'filter-urls-checkbox'],
   ];
   for (const [setting, id] of settingToInput) {
-    const element = document.getElementById(id) as HTMLInputElement;
+    const element = getInput(id)
     console.log('applySettings:', setting, settings[setting], element)
     if (element.type == InputType.Checkbox) {
       element.checked = settings[setting] as boolean;
@@ -66,10 +75,6 @@ const getAllTabGroups = async () => {
   }
 }
 
-function getInput(id: string): HTMLInputElement {
-  return document.getElementById(id)! as HTMLInputElement;
-}
-
 const openLinks = async (event: Event) => {
   console.log('openLinks: Button pressed! Form is', event)
   const form = (event.target! as HTMLButtonElement).parentElement
@@ -81,22 +86,52 @@ const openLinks = async (event: Event) => {
     links.push(elt.parentElement!.querySelector('a')!.href!)
   }
   console.log('openLinks: Links:', links)
-  const options = {
-    windowId: getInput('new-window-checkbox').checked
-      ? chrome.windows.WINDOW_ID_NONE
-      : chrome.windows.WINDOW_ID_CURRENT,
-    tabGroupName: getInput('tab-group-name').value || undefined,
+  const options: {[key: string]: any} = {
     discard: getInput('discard-tab-checkbox').checked,
     deduplicate: getInput('deduplicate-links-checkbox').checked,
-    focus: getInput('focus-checkbox').checked,
   }
-  try {
-    await makeTabsForLinks(links, options)
-  } catch (e: any) {
-    showError(e)
-    throw e
+  const displayOption = (document.getElementById('display') as HTMLInputElement | undefined)?.value;
+  if (displayOption) {
+    options.display = DisplayInfo.get(displayOption);
+    console.log('Requested display info', displayOption, options.display)
   }
   window.close();
+  if (getInput('sxs-checkbox').checked && links.length >= 2) {
+    // Multi-display support
+    // Open the first link in a new lefthand window
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.focus = true;
+    options.position = 'left';
+    try {
+      await makeTabsForLinks([links[0]], options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+    // Open the rest of the links in a a new righthand window
+    // options.focus = false;
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.position = 'right';
+    try {
+      await makeTabsForLinks(links.slice(1), options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+  } else {
+    options.windowId = getInput('new-window-checkbox').checked
+      ? chrome.windows.WINDOW_ID_NONE
+      : chrome.windows.WINDOW_ID_CURRENT;
+    options.tabGroupName = getInput('tab-group-name').value || undefined;
+    options.focus = getInput('focus-checkbox').checked;
+    try {
+      console.log('Making tabs with options:', options)
+      await makeTabsForLinks(links, options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+  }
 }
 
 const addLinkCheckboxes = async (links: string[], labels: string[], session: OSLSession) => {
@@ -236,37 +271,44 @@ const clearHighlights = function(root: Element) {
 }
 
 const filterRows = function() {
-  const filterInput = document.getElementById('filter')!;
-  const filterUrlsCheckbox = document.getElementById('filter-urls-checkbox')! as HTMLInputElement;
-  const hideDuplicatesCheckbox = document.getElementById('hide-duplicates-checkbox')! as HTMLInputElement;
+  const filterInput = getInput('filter');
+  const filterUrlsCheckbox = getInput('filter-urls-checkbox')!;
+  const hideDuplicatesCheckbox = getInput('hide-duplicates-checkbox')!;
 
-  const needle = new RegExp(filterInput.innerText, 'ig');
-  const filterUrls = filterUrlsCheckbox.checked;
-  const hideDuplicates = hideDuplicatesCheckbox.checked;
-  console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
+  try {
+    const needle = new RegExp(filterInput.innerText, 'ig');
+    const filterUrls = filterUrlsCheckbox.checked;
+    const hideDuplicates = hideDuplicatesCheckbox.checked;
+    console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
 
-  const shouldShow = (row: Element) => {
-    const isDuplicate = row.classList.contains('duplicate')
-    const haystack = (filterUrls ? row.querySelector('a')?.href : row.textContent) ?? '';
-    const isMatch = haystack.match(needle);
-    if (hideDuplicates) {
-      return isMatch && !isDuplicate;
+    const shouldShow = (row: Element) => {
+      const isDuplicate = row.classList.contains('duplicate')
+      const haystack = filterUrls
+	? `${row.querySelector('a')?.href ?? ""} ${row.textContent ?? ""}`
+	: row.textContent ?? '';
+      const isMatch = haystack.match(needle);
+      if (hideDuplicates) {
+	return isMatch && !isDuplicate;
+      }
+      return isMatch;
     }
-    return isMatch;
-  }
 
-  for (const row of document.querySelectorAll('div.row')) {
-    if (shouldShow(row)) {
-      console.log('Showing');
-      row.classList.remove('invisible');
-    } else {
-      console.log('Hiding');
-      row.classList.add('invisible');
+    for (const row of document.querySelectorAll('div.row')) {
+      if (shouldShow(row)) {
+	console.log('Showing');
+	row.classList.remove('invisible');
+      } else {
+	console.log('Hiding');
+	row.classList.add('invisible');
+      }
     }
-  }
-  clearHighlights(document.getElementById('select-links-div')!);
-  if (filterInput.innerText.length != 0) {
-    highlightRegex(document.getElementById('select-links-div')!, needle)
+    clearHighlights(document.getElementById('select-links-div')!);
+    if (filterInput.innerText.length != 0) {
+      highlightRegex(document.getElementById('select-links-div')!, needle)
+    }
+  } catch (e: any) {
+    console.log(e);
+    throw e;
   }
 };
 
@@ -279,6 +321,15 @@ const setupFilter = function() {
   filterInput.addEventListener('input', filterRows);
   filterUrlsCheckbox.addEventListener('change', filterRows);
   hideDuplicatesCheckbox.addEventListener('change', filterRows)
+  filterInput.addEventListener('keypress', (event) => {
+    if (event.which === 13) {
+      event.preventDefault();
+    }
+  });
+  document.body.addEventListener('keypress', (event) => {
+    filterInput.focus();
+    filterInput.dispatchEvent(event);
+  });
 }
 
 const toggleVisibleLinks = function(event: Event) {
@@ -314,6 +365,47 @@ const setupTabGroupNameInput = async function() {
   console.log('Done');
 }
 
+const setupSxS = () => {
+  const sxsCheckbox = getInput('sxs-checkbox');
+  sxsCheckbox.addEventListener('change', (event: Event) => {
+    for (const id of ['new-window-checkbox', 'tab-group-name', 'focus-checkbox']) {
+      const input = getInput(id);
+      input.disabled = sxsCheckbox.checked;
+    }
+  });
+}
+
+const setupDisplay = () => {
+  if (DisplayInfo.size > 1) {
+    const sxsDisplay = getInput('display');
+    sxsDisplay.parentElement!.classList.remove('invisible');
+    sxsDisplay.disabled = false
+    for (const [id, display] of DisplayInfo) {
+      const option = document.createElement('option') as HTMLOptionElement;
+      option.value = display.id;
+      option.textContent = display.name;
+      sxsDisplay.appendChild(option)
+    }
+  }
+}
+
+const setupHamburger = () => {
+  const hamburger = document.getElementById('hamburger')!;
+  const hamburgerCaption = document.getElementById('hamburger-caption')!
+  const config = document.getElementById('config-container')!;
+  hamburger.addEventListener('click', (event: Event) => {
+    if (hamburger.classList.contains('hamburger-closed')) {
+      hamburgerCaption.textContent = 'Tap hamburger to hide options'
+      hamburger.classList.remove('hamburger-closed')
+      config.classList.remove('config-closed');
+    } else {
+      hamburgerCaption.textContent = 'Tap hamburger to show options'
+      hamburger.classList.add('hamburger-closed')
+      config.classList.add('config-closed');
+    }
+  })
+}
+
 // Filling in form
 const main = async () => {
   showError('', '');
@@ -344,6 +436,9 @@ const main = async () => {
     setupFilter();
     setupToggleButton();
     setupOpenButton();
+    setupSxS();
+    setupDisplay();
+    setupHamburger();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);
   } catch (e) {
