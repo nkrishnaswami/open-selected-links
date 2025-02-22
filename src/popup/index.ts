@@ -7,6 +7,10 @@ const showError = (title: string, subtitle?: string) => {
   document.getElementById('error_sub')!.innerText = subtitle ?? '';
 }
 
+function getInput(id: string): HTMLInputElement {
+  return document.getElementById(id)! as HTMLInputElement;
+}
+
 const applySettings = async () => {
   const settings = await loadSettings()
   console.log('settings', settings)
@@ -20,7 +24,7 @@ const applySettings = async () => {
     [SettingID.PopupMatchUrls, 'filter-urls-checkbox'],
   ];
   for (const [setting, id] of settingToInput) {
-    const element = document.getElementById(id) as HTMLInputElement;
+    const element = getInput(id)
     console.log('applySettings:', setting, settings[setting], element)
     if (element.type == InputType.Checkbox) {
       element.checked = settings[setting] as boolean;
@@ -64,10 +68,6 @@ const getAllTabGroups = async () => {
   } catch (e) {
     return []
   }
-}
-
-function getInput(id: string): HTMLInputElement {
-  return document.getElementById(id)! as HTMLInputElement;
 }
 
 const openLinks = async (event: Event) => {
@@ -236,37 +236,44 @@ const clearHighlights = function(root: Element) {
 }
 
 const filterRows = function() {
-  const filterInput = document.getElementById('filter')!;
-  const filterUrlsCheckbox = document.getElementById('filter-urls-checkbox')! as HTMLInputElement;
-  const hideDuplicatesCheckbox = document.getElementById('hide-duplicates-checkbox')! as HTMLInputElement;
+  const filterInput = getInput('filter');
+  const filterUrlsCheckbox = getInput('filter-urls-checkbox')!;
+  const hideDuplicatesCheckbox = getInput('hide-duplicates-checkbox')!;
 
-  const needle = new RegExp(filterInput.innerText, 'ig');
-  const filterUrls = filterUrlsCheckbox.checked;
-  const hideDuplicates = hideDuplicatesCheckbox.checked;
-  console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
+  try {
+    const needle = new RegExp(filterInput.innerText, 'ig');
+    const filterUrls = filterUrlsCheckbox.checked;
+    const hideDuplicates = hideDuplicatesCheckbox.checked;
+    console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
 
-  const shouldShow = (row: Element) => {
-    const isDuplicate = row.classList.contains('duplicate')
-    const haystack = (filterUrls ? row.querySelector('a')?.href : row.textContent) ?? '';
-    const isMatch = haystack.match(needle);
-    if (hideDuplicates) {
-      return isMatch && !isDuplicate;
+    const shouldShow = (row: Element) => {
+      const isDuplicate = row.classList.contains('duplicate')
+      const haystack = filterUrls
+	? `${row.querySelector('a')?.href ?? ""} ${row.textContent ?? ""}`
+	: row.textContent ?? '';
+      const isMatch = haystack.match(needle);
+      if (hideDuplicates) {
+	return isMatch && !isDuplicate;
+      }
+      return isMatch;
     }
-    return isMatch;
-  }
 
-  for (const row of document.querySelectorAll('div.row')) {
-    if (shouldShow(row)) {
-      console.log('Showing');
-      row.classList.remove('invisible');
-    } else {
-      console.log('Hiding');
-      row.classList.add('invisible');
+    for (const row of document.querySelectorAll('div.row')) {
+      if (shouldShow(row)) {
+	console.log('Showing');
+	row.classList.remove('invisible');
+      } else {
+	console.log('Hiding');
+	row.classList.add('invisible');
+      }
     }
-  }
-  clearHighlights(document.getElementById('select-links-div')!);
-  if (filterInput.innerText.length != 0) {
-    highlightRegex(document.getElementById('select-links-div')!, needle)
+    clearHighlights(document.getElementById('select-links-div')!);
+    if (filterInput.innerText.length != 0) {
+      highlightRegex(document.getElementById('select-links-div')!, needle)
+    }
+  } catch (e: any) {
+    console.log(e);
+    throw e;
   }
 };
 
@@ -279,6 +286,15 @@ const setupFilter = function() {
   filterInput.addEventListener('input', filterRows);
   filterUrlsCheckbox.addEventListener('change', filterRows);
   hideDuplicatesCheckbox.addEventListener('change', filterRows)
+  filterInput.addEventListener('keypress', (event) => {
+    if (event.which === 13) {
+      event.preventDefault();
+    }
+  });
+  document.body.addEventListener('keypress', (event) => {
+    filterInput.focus();
+    filterInput.dispatchEvent(event);
+  });
 }
 
 const toggleVisibleLinks = function(event: Event) {

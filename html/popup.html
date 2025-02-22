@@ -9,11 +9,8 @@
     <div id="error"></div>
     <div id="error_sub"></div>
     <form name="SelectLinks">
-      <div id="filter"
-	   placeholder="Filter visible links using regular expression"
-	   style="border: 1px solid black; width: 99vw"
-	   contenteditable></div>
       <fieldset>
+	<div id="filter" contenteditable="plaintext-only" placeholder="Start typing to filter visible links (regexp syntax)"></div>
 	<div id="filter-urls-ui">
 	  <label for="filter-urls-checkbox">Match URLs as well as link text:</label>
 	  <input id="filter-urls-checkbox" type="checkbox">
