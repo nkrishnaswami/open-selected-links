@@ -9,55 +9,72 @@
     <div id="error"></div>
     <div id="error_sub"></div>
     <form name="SelectLinks">
-      <fieldset>
-	<div id="filter" contenteditable="plaintext-only" placeholder="Start typing to filter visible links (regexp syntax)"></div>
-	<div id="filter-urls-ui">
-	  <label for="filter-urls-checkbox">Match URLs as well as link text:</label>
-	  <input id="filter-urls-checkbox" type="checkbox">
+      <div id="hamburger-row">
+	<div id="hamburger">
+	  <div></div>
+	  <div></div>
+	  <div></div>
 	</div>
-	<div id="hide-duplicates-ui">
-	  <label for="hide-duplicates-checkbox">Hide links with duplicate URLs (show first only):</label>
-	  <input id="hide-duplicates-checkbox" type="checkbox">
+	<div id="hamburger-caption">
+	  Tap hamburger to hide options
 	</div>
-	<button type="button" id="toggle-button">Toggle visible links</button>
-      </fieldset>
-      <fieldset>
-	<div id="target-window-ui">
-	  <label for="new-window-checkbox">Open links in new window:</label>
-	  <input id="new-window-checkbox" type="checkbox" checked>
+      </div>
+      <div id="config-container">
+	<fieldset>
+	  <div id="filter" contenteditable="plaintext-only" placeholder="Start typing to filter visible links (regexp syntax)"></div>
+	  <div id="filter-urls-ui">
+	    <label for="filter-urls-checkbox">Match URLs as well as link text:</label>
+	    <input id="filter-urls-checkbox" type="checkbox">
+	  </div>
+	  <div id="hide-duplicates-ui">
+	    <label for="hide-duplicates-checkbox">Hide links with duplicate URLs (show first only):</label>
+	    <input id="hide-duplicates-checkbox" type="checkbox">
+	  </div>
+	  <button type="button" id="toggle-button">Toggle visible links</button>
+	</fieldset>
+	<fieldset>
+	  <div id="target-window-ui">
+	    <label for="new-window-checkbox">Open links in new window:</label>
+	    <input id="new-window-checkbox" type="checkbox" checked>
+	  </div>
+	  <div id="tab-group-ui">
+	    <label for="tab-group-name">Tab group:</label>
+	    <input id="tab-group-name" type="text" placeholder="Choose existing group or enter name for new group" list="tab-group-list">
+	    <datalist id="tab-group-list">
+	      <option value="-1">None</option>
+	    </datalist>
+	  </div>
+	  <div id="target-discard-ui">
+	    <label for="discard-tab-checkbox">Automatically snooze tabs:</label>
+	    <input id="discard-tab-checkbox" type="checkbox">
+	  </div>
+	  <div id="target-deduplicate-ui">
+	    <label for="deduplicate-links-checkbox">Deduplicate links before opening:</label>
+	    <input id="deduplicate-links-checkbox" type="checkbox">
+	  </div>
+	  <div id="target-focus-ui">
+	    <label for="focus-checkbox">Give focus to opened tab/window:</label>
+	    <input id="focus-checkbox" type="checkbox">
+	    <label for="focus-checkbox">(New windows may show up in front of current window even when off)</label>
+	  </div>
+	  <div id="target-sxs">
+	    <label for="sxs-checkbox">Side-by-side, first link on left::</label>
+	    <input id="sxs-checkbox" type="checkbox">
+	  </div>
+	  <div id='target-display' class='invisible'>
+	    <label for="display">The screen on which to open new windows:</label>
+	    <select id="display" disabled>
+	      <option value='default'>Default</option>
+	    </select>
+	</fieldset>
 	</div>
-	<div id="tab-group-ui">
-	  <label for="tab-group-name">Tab group:</label>
-	  <input id="tab-group-name" type="text" placeholder="Choose existing group or enter name for new group" list="tab-group-list">
-	  <datalist id="tab-group-list">
-	    <option value="-1">None</option>
-	  </datalist>
-	</div>
-	<div id="target-discard-ui">
-	  <label for="discard-tab-checkbox">Automatically snooze tabs:</label>
-	  <input id="discard-tab-checkbox" type="checkbox">
-	</div>
-	<div id="target-deduplicate-ui">
-	  <label for="deduplicate-links-checkbox">Deduplicate links before opening:</label>
-	  <input id="deduplicate-links-checkbox" type="checkbox">
-	</div>
-	<div id="target-focus-ui">
-	  <label for="focus-checkbox">Give focus to opened tab/window:</label>
-	  <input id="focus-checkbox" type="checkbox">
-	<div id="target-sxs">
-	  <label for="sxs-checkbox">Side-by-side, first link on left::</label>
-	  <input id="sxs-checkbox" type="checkbox">
-	</div>
-	<div id='target-display' class='invisible'>
-	  <label for="display">The screen on which to open new windows:</label>
-	  <select id="display" disabled>
-	    <option value='default'>Default</option>
-	  </select>
-      </fieldset>
       
       Choose links to open:
       <div id="select-links-div"></div>
-      <button type="button" id="open-button">Open</button>
+
+      <div id="open-button-display">
+	<button type="button" id="open-button">Open</button>
+      </div>
     </form>
   </body>
 </html>

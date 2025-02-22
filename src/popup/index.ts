@@ -389,6 +389,23 @@ const setupDisplay = () => {
   }
 }
 
+const setupHamburger = () => {
+  const hamburger = document.getElementById('hamburger')!;
+  const hamburgerCaption = document.getElementById('hamburger-caption')!
+  const config = document.getElementById('config-container')!;
+  hamburger.addEventListener('click', (event: Event) => {
+    if (hamburger.classList.contains('hamburger-closed')) {
+      hamburgerCaption.textContent = 'Tap hamburger to hide options'
+      hamburger.classList.remove('hamburger-closed')
+      config.classList.remove('config-closed');
+    } else {
+      hamburgerCaption.textContent = 'Tap hamburger to show options'
+      hamburger.classList.add('hamburger-closed')
+      config.classList.add('config-closed');
+    }
+  })
+}
+
 // Filling in form
 const main = async () => {
   showError('', '');
@@ -421,6 +438,7 @@ const main = async () => {
     setupOpenButton();
     setupSxS();
     setupDisplay();
+    setupHamburger();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);
   } catch (e) {
