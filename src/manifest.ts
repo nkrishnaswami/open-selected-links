@@ -30,7 +30,7 @@ export default defineManifest({
       description: 'Open selected links in a new tab group in the current window',
     },
   },
-  permissions: ['activeTab', 'contextMenus', 'scripting', 'storage', 'tabGroups'],
+  permissions: ['activeTab', 'contextMenus', 'system.display', 'scripting', 'storage', 'tabGroups'],
   icons: {
     16: 'img/icon16.png',
     32: 'img/icon32.png',

@@ -42,9 +42,14 @@
 	  <input id="deduplicate-links-checkbox" type="checkbox">
 	</div>
 	<div id="target-focus-ui">
-	  <label for="focus-checkbox">Give focus to opened tab/window (new windows may show up in front of current window):</label>
+	  <label for="focus-checkbox">Give focus to opened tab/window:</label>
 	  <input id="focus-checkbox" type="checkbox">
 	</div>
+	<div id='target-display' class='invisible'>
+	  <label for="display">The screen on which to open new windows:</label>
+	  <select id="display" disabled>
+	    <option value='default'>Default</option>
+	  </select>
       </fieldset>
       
       Choose links to open:

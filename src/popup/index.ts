@@ -1,6 +1,11 @@
 import './index.css';
 import { OSLSession, makeTabsForLinks } from '../common/extract-links.js'
+import type { MakeTabOptions } from '../common/extract-links.js'
 import { loadSettings, InputType, SettingID, Settings } from '../common/settings.js'
+
+const DisplayInfo = new Map<string, chrome.system.display.DisplayInfo>(
+  (await chrome.system.display.getInfo())
+    .map(info => [info.id, info]));
 
 const showError = (title: string, subtitle?: string) => {
   document.getElementById('error')!.innerText = title;
@@ -81,22 +86,29 @@ const openLinks = async (event: Event) => {
     links.push(elt.parentElement!.querySelector('a')!.href!)
   }
   console.log('openLinks: Links:', links)
-  const options = {
-    windowId: getInput('new-window-checkbox').checked
-      ? chrome.windows.WINDOW_ID_NONE
-      : chrome.windows.WINDOW_ID_CURRENT,
-    tabGroupName: getInput('tab-group-name').value || undefined,
+  const options: {[key: string]: any} = {
     discard: getInput('discard-tab-checkbox').checked,
     deduplicate: getInput('deduplicate-links-checkbox').checked,
-    focus: getInput('focus-checkbox').checked,
   }
-  try {
-    await makeTabsForLinks(links, options)
-  } catch (e: any) {
-    showError(e)
-    throw e
+  const displayOption = (document.getElementById('display') as HTMLInputElement | undefined)?.value;
+  if (displayOption) {
+    options.display = DisplayInfo.get(displayOption);
+    console.log('Requested display info', displayOption, options.display)
   }
   window.close();
+    options.windowId = getInput('new-window-checkbox').checked
+      ? chrome.windows.WINDOW_ID_NONE
+      : chrome.windows.WINDOW_ID_CURRENT;
+    options.tabGroupName = getInput('tab-group-name').value || undefined;
+    options.focus = getInput('focus-checkbox').checked;
+    try {
+      console.log('Making tabs with options:', options)
+      await makeTabsForLinks(links, options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+  }
 }
 
 const addLinkCheckboxes = async (links: string[], labels: string[], session: OSLSession) => {
@@ -330,6 +342,20 @@ const setupTabGroupNameInput = async function() {
   console.log('Done');
 }
 
+const setupDisplay = () => {
+  if (DisplayInfo.size > 1) {
+    const sxsDisplay = getInput('display');
+    sxsDisplay.parentElement!.classList.remove('invisible');
+    sxsDisplay.disabled = false
+    for (const [id, display] of DisplayInfo) {
+      const option = document.createElement('option') as HTMLOptionElement;
+      option.value = display.id;
+      option.textContent = display.name;
+      sxsDisplay.appendChild(option)
+    }
+  }
+}
+
 // Filling in form
 const main = async () => {
   showError('', '');
@@ -360,6 +386,7 @@ const main = async () => {
     setupFilter();
     setupToggleButton();
     setupOpenButton();
+    setupDisplay();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);
   } catch (e) {

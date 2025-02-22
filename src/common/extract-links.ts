@@ -76,6 +76,7 @@ export interface MakeTabOptions {
   discard?: boolean,
   deduplicate?: boolean,
   focus?: boolean,
+  display?: chrome.system.display.DisplayInfo
 }
 
 export const makeTabsForLinks = async (links: string[], options: MakeTabOptions) => {
@@ -99,16 +100,28 @@ export const makeTabsForLinks = async (links: string[], options: MakeTabOptions)
 
 const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
   console.log(`Creating window with ${links.length} tabs`)
-  const window = await chrome.windows.create({
-    focused: options.focus,
+  var workArea: chrome.system.display.Bounds | undefined;
+  if (options.display) {
+    workArea = options.display.workArea;
+  }
+  console.log('Creating window: workArea:', workArea)
+  const windowCreateOptions: chrome.windows.CreateData = {
     url: links,
-  })
-  options.windowId = window.id
+    focused: options.focus,
+  };
+  if (workArea) {
+      // User explicitly requested a display
+      windowCreateOptions.top = workArea.top;
+      windowCreateOptions.left = workArea.left;
+  }
+  console.log('Creating window: options:', windowCreateOptions)
+  const newWindow = await chrome.windows.create(windowCreateOptions)
+  options.windowId = newWindow.id
   const tabIds: number[] = []
-  if (!window.tabs) {
+  if (!newWindow.tabs) {
     return tabIds;
   }
-  for (const tab of window.tabs) {
+  for (const tab of newWindow.tabs) {
     if (tab.id !== undefined) {
       if (options.discard) {
 	chrome.tabs.discard(tab.id)
