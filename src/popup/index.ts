@@ -96,6 +96,29 @@ const openLinks = async (event: Event) => {
     console.log('Requested display info', displayOption, options.display)
   }
   window.close();
+  if (getInput('sxs-checkbox').checked && links.length >= 2) {
+    // Multi-display support
+    // Open the first link in a new lefthand window
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.focus = true;
+    options.position = 'left';
+    try {
+      await makeTabsForLinks([links[0]], options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+    // Open the rest of the links in a a new righthand window
+    // options.focus = false;
+    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.position = 'right';
+    try {
+      await makeTabsForLinks(links.slice(1), options)
+    } catch (e: any) {
+      showError(e)
+      throw e
+    }
+  } else {
     options.windowId = getInput('new-window-checkbox').checked
       ? chrome.windows.WINDOW_ID_NONE
       : chrome.windows.WINDOW_ID_CURRENT;
@@ -342,6 +365,16 @@ const setupTabGroupNameInput = async function() {
   console.log('Done');
 }
 
+const setupSxS = () => {
+  const sxsCheckbox = getInput('sxs-checkbox');
+  sxsCheckbox.addEventListener('change', (event: Event) => {
+    for (const id of ['new-window-checkbox', 'tab-group-name', 'focus-checkbox']) {
+      const input = getInput(id);
+      input.disabled = sxsCheckbox.checked;
+    }
+  });
+}
+
 const setupDisplay = () => {
   if (DisplayInfo.size > 1) {
     const sxsDisplay = getInput('display');
@@ -386,6 +419,7 @@ const main = async () => {
     setupFilter();
     setupToggleButton();
     setupOpenButton();
+    setupSxS();
     setupDisplay();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);

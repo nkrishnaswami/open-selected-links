@@ -76,6 +76,7 @@ export interface MakeTabOptions {
   discard?: boolean,
   deduplicate?: boolean,
   focus?: boolean,
+  position?: 'left' | 'right',
   display?: chrome.system.display.DisplayInfo
 }
 
@@ -98,11 +99,26 @@ export const makeTabsForLinks = async (links: string[], options: MakeTabOptions)
   }
 }
 
+interface ScreenDetailed extends Screen {
+  top: number
+  left: number
+  availTop: number
+  availLeft: number
+}
+
 const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
   console.log(`Creating window with ${links.length} tabs`)
   var workArea: chrome.system.display.Bounds | undefined;
   if (options.display) {
     workArea = options.display.workArea;
+  } else if (window?.screen) {
+    const screen = window.screen as ScreenDetailed
+    workArea = {
+      height: screen.availHeight ?? screen.height,
+      width: screen.availWidth ?? screen.width,
+      top: screen.availTop ?? screen.top,
+      left: screen.availLeft ?? screen.left,
+    }
   }
   console.log('Creating window: workArea:', workArea)
   const windowCreateOptions: chrome.windows.CreateData = {
@@ -110,9 +126,23 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
     focused: options.focus,
   };
   if (workArea) {
+    if (options.position === 'left') {
+      windowCreateOptions.top = workArea.top;
+      windowCreateOptions.left = workArea.left;
+      windowCreateOptions.width = Math.floor(workArea.width / 2);
+      windowCreateOptions.height = workArea.height;
+      windowCreateOptions.focused = true;
+    } else if (options.position === 'right') {
+      windowCreateOptions.top = workArea.top;
+      windowCreateOptions.left = workArea.left + Math.floor(workArea.width / 2);
+      windowCreateOptions.width = Math.floor(workArea.width / 2);
+      windowCreateOptions.height = workArea.height;
+      windowCreateOptions.focused = false;
+    } else if (options.display) {
       // User explicitly requested a display
       windowCreateOptions.top = workArea.top;
       windowCreateOptions.left = workArea.left;
+    }
   }
   console.log('Creating window: options:', windowCreateOptions)
   const newWindow = await chrome.windows.create(windowCreateOptions)
