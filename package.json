@@ -1,7 +1,7 @@
 {
   "name": "Open Selected Links",
   "displayName": "Open Selected Links",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "author": "Natarajan Krishnaswami <natarajan+osl@krishnaswami.org>",
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.",
   "type": "module",
