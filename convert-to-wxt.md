@@ -140,3 +140,157 @@ npm run test
 ```
 
 If you want me to proceed and modify files to implement Option B (manifest-declared content scripts), reply "go ahead - Option B" and I'll prepare SEARCH/REPLACE blocks for src/manifest.ts, vite.config.ts, and a small change in src/common/extract-links.ts to add a tolerant fallback ping-only setup.
+
+Hands-on: initialize a vanilla TypeScript WXT project and migrate this code (minimal-change Option A)
+
+Goal: set up a clean WXT project and bring over this extension’s code with as few source/tree changes as possible. Keep dynamic content-script injection and existing HTML/pages. Limit edits to framework-required differences.
+
+1) Scaffold a vanilla WXT + TypeScript project
+- Create a new project next to your current repo:
+  - npm create wxt@latest wxt-osl -- --template typescript
+  - cd wxt-osl
+  - npm i -D @types/chrome vitest vitest-chrome prettier
+
+2) Copy the current code and assets into the WXT project
+- From the original repository root, set an env var pointing to the source tree; in the new WXT project run:
+  - export OLD=../open-selected-links
+- Copy source modules:
+  - cp -R "$OLD/src/common" ./src/
+  - mkdir -p ./src/background ./src/contentScript ./src/options ./src/popup
+  - cp "$OLD/src/background/index.ts" ./src/background/
+  - cp "$OLD/src/contentScript/index.ts" ./src/contentScript/
+  - cp "$OLD/src/contentScript/extractor.ts" ./src/contentScript/
+  - cp "$OLD/src/contentScript/index.css" ./src/contentScript/
+  - cp "$OLD/src/options/index.ts" ./src/options/
+  - cp "$OLD/src/options/index.css" ./src/options/
+  - cp "$OLD/src/popup/index.ts" ./src/popup/
+  - cp "$OLD/src/popup/index.css" ./src/popup/
+  - cp "$OLD/src/global.d.ts" ./src/global.d.ts
+- Copy HTML pages:
+  - mkdir -p ./html
+  - cp "$OLD/html/popup.html" ./html/
+  - cp "$OLD/html/options.html" ./html/
+- Copy icons and public assets:
+  - mkdir -p ./public/img
+  - cp "$OLD/public/img/"* ./public/img/
+- Optional: bring test helpers (if you want to reuse vitest + vitest-chrome)
+  - cp "$OLD/vitest.init.ts" ./vitest.init.ts
+  - cp "$OLD/happydom.init.ts" ./happydom.init.ts
+  - mkdir -p ./test && cp -R "$OLD/test/." ./test/  (if you plan to run your existing tests)
+
+Do not copy the CRX-specific build config:
+- Do not copy src/manifest.ts (CRXJS), vite.config.ts (CRXJS plugin), or src/zip.js. WXT will manage the manifest and packaging.
+- Do not copy build/ or package/ output directories.
+
+3) Create WXT config that mirrors your manifest and keeps dynamic injection
+- In the WXT project, add a wxt.config.ts that “extends” the manifest with your current values, leaving the source files and HTML structure as-is. Example:
+
+  import { defineConfig } from 'wxt';
+
+  export default defineConfig({
+    manifest: {
+      manifest_version: 3,
+      name: 'Open Selected Links',
+      version: '1.8.2',
+      description: 'Opens multiple links in the selected content in the current or new window or a tab group.  BETA TESTING RELEASE',
+      background: {
+        service_worker: 'src/background/index.ts',
+        type: 'module',
+      },
+      options_page: 'html/options.html',
+      action: {
+        default_popup: 'html/popup.html',
+        default_title: 'Open Selected Links',
+        default_icon: 'img/icon48.png',
+      },
+      commands: {
+        osl_in_tabs: {
+          description: 'Open selected links in new tabs in the current window',
+        },
+        osl_in_window: {
+          description: 'Open selected links in a new window',
+        },
+        osl_in_tab_group: {
+          description: 'Open selected links in a new tab group in the current window',
+        },
+      },
+      permissions: ['activeTab', 'contextMenus', 'system.display', 'scripting', 'storage', 'tabGroups'],
+      icons: {
+        16: 'img/icon16.png',
+        32: 'img/icon32.png',
+        48: 'img/icon48.png',
+        128: 'img/icon128.png',
+      },
+      web_accessible_resources: [
+        { resources: ['html/popup.html'], matches: ['<all_urls>'] },
+      ],
+      // If you need stable extension ID in dev: set "key" here (only for local builds).
+      // key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...',
+    },
+    vite: {
+      build: {
+        rollupOptions: {
+          // Emit the content script as a standalone entry so it can be injected dynamically.
+          input: {
+            'content-script': 'src/contentScript/index.ts',
+          },
+          output: {
+            // Deterministic names for easier reference if you decide to use a hardcoded path
+            entryFileNames: (chunk) =>
+              chunk.name === 'content-script' ? 'content-script.js' : 'assets/[name].js',
+            chunkFileNames: 'assets/[name].js',
+          },
+        },
+      },
+      test: {
+        include: ['test/**/*.test.ts'],
+        setupFiles: ['./vitest.init.ts'],
+      },
+    },
+  });
+
+4) Keep dynamic content-script injection with the smallest possible source edit (if needed)
+- Your current code dynamically injects the content script via:
+  - import contentScriptPath from '../contentScript/index?script';
+  - chrome.scripting.executeScript({ files: [contentScriptPath], ... });
+- CRXJS’s ?script import is not recognized by vanilla Vite under WXT. Two minimal approaches:
+  1) Single import change + tiny helper file (simple and robust)
+     - Create src/contentScript/path.ts in the WXT project that exports the final emitted filename:
+       - export default 'content-script.js';
+     - Update one import in src/common/extract-links.ts to:
+       - import contentScriptPath from '../contentScript/path';
+     - Keep everything else (executeScript/insertCSS) unchanged.
+  2) Emulate ?script via a Vite plugin (advanced)
+     - Implement a custom Vite plugin in wxt.config.ts that resolves ?script imports into emitted entry file paths. This keeps the original import statement unchanged but is more complex to implement correctly with Rollup’s emitFile/getFileName lifecycle.
+
+- CSS injection: you currently import ../contentScript/index.css?inline and pass it to chrome.scripting.insertCSS({ css: contentCss, ... }). Verify that the WXT Vite build still inlines the CSS string. If it doesn’t, switch to a small string constant containing the CSS (copy from src/contentScript/index.css) or import as a raw string using vite’s ?raw query.
+
+5) HTML, popup, and options
+- Keep html/popup.html and html/options.html unchanged; WXT will bundle their <script type="module"> entrypoints. Ensure their paths match your project:
+  - popup: /src/common/extract-links.ts and /src/popup/index.ts
+  - options: /src/options/index.ts
+
+6) Tests
+- Bring vitest.init.ts and happydom.init.ts if you run DOM/unit tests; keep vitest-chrome to mock chrome.* APIs.
+- Configure the test block in wxt.config.ts (as shown above) so tests run with your setup file.
+
+7) Build and validate
+- Run development and build:
+  - npm run dev (or wxt dev) — verify popup/options load and background works.
+  - npm run build (or wxt build) — confirm dist contains:
+    - service worker bundle for background,
+    - content-script.js at project root (or at the path you configured),
+    - assets/ chunks,
+    - html/ pages and public/img icons.
+- Validate dynamic injection:
+  - Ensure src/common/extract-links.ts still pings the content script and injects it when needed:
+    - chrome.scripting.insertCSS({ css: ... })
+    - chrome.scripting.executeScript({ files: ['content-script.js'], target: ... })
+
+Notes and constraints (keeping changes minimal)
+- We intentionally avoid moving files into WXT’s entrypoints/ folders; we reference existing paths in the manifest instead.
+- We avoid adding a runtime shim.
+- We preserve programmatic injection to minimize behavioral changes and only adjust how the content script path is resolved (via a tiny helper module).
+- If in a later iteration you choose WXT’s defineContentScript flow, move src/contentScript/index.ts into a WXT entrypoint and remove the programmatic injection logic.
+
+When you’re ready, I can prepare concrete edits for the minimal-change approach (create src/contentScript/path.ts in the WXT project and adjust the one import), and add a wxt.config.ts that mirrors your current manifest and build behavior.
