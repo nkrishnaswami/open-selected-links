@@ -146,9 +146,9 @@ Hands-on: initialize a vanilla TypeScript WXT project and migrate this code (min
 Goal: set up a clean WXT project and bring over this extension’s code with as few source/tree changes as possible. Keep dynamic content-script injection and existing HTML/pages. Limit edits to framework-required differences.
 
 1) Scaffold a vanilla WXT + TypeScript project
-- Create a new project next to your current repo:
-  - npm create wxt@latest wxt-osl -- --template typescript
-  - cd wxt-osl
+- Create a new project next to your current repo (a sibling directory named ../open-selected-links-xp):
+  - npm create wxt@latest ../open-selected-links-xp -- --template typescript
+  - cd ../open-selected-links-xp
   - npm i -D @types/chrome vitest vitest-chrome prettier
 
 2) Copy the current code and assets into the WXT project
