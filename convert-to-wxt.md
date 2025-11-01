@@ -23,117 +23,114 @@ Primary goals
 - Minimize source-level churn by centralizing runtime differences behind a compatibility boundary if/when needed.
 - Adjust build/packaging so WXT packaging artifacts are produced.
 
-High-level migration strategy
-1. Audit and inventory runtime APIs and manifest entries.
-2. (Optional) Add a small compatibility wrapper if/when supporting multiple runtimes becomes necessary — for now we will not add a runtime shim (per current decision).
-3. Produce a WXT-compatible manifest JSON derived from src/manifest.ts (or a build-time emitter).
-4. Update build pipeline (vite.config.ts, package.json) to produce the WXT package (dist layout + pack step).
-5. Adjust any code that depends on Chrome-only features without WXT equivalents (feature-detect and fallback).
-6. Update typings and tests.
+Important note about content scripts and WXT
+- WXT is a build/test framework: it does not replace the browser's extension runtime APIs. However, WXT's source-level project configuration and test harness expect content scripts to be declared/registered differently from some CRX/Vite workflows that rely on dynamic runtime asset resolution via import assertions (e.g., import foo from '... ?script').
+- The repository currently uses programmatic injection:
+  - src/common/extract-links.ts imports the content script path using `import contentScriptPath from '../contentScript/index?script'` and injects it at runtime with `chrome.scripting.executeScript({ files: [contentScriptPath], ... })`
+  - It also inserts CSS by importing contentCss from '../contentScript/index.css?inline' and calling `chrome.scripting.insertCSS`.
+- For WXT testing/packaging you must ensure the content script and CSS are present in the final packaged layout at stable paths that your runtime code passes to chrome.scripting.executeScript / insertCSS or else register the content script declaratively in the manifest in a way WXT expects.
 
-Detailed migration tasks
+Two recommended migration approaches (both supported by WXT; choose based on test/packaging constraints)
 
-A. Inventory / Audit
-- Search the codebase for all chrome.* usages and list which APIs are used:
-  - chrome.tabs (create, update, query, sendMessage, discard)
-  - chrome.windows (create, WINDOW_ID_NONE, WINDOW_ID_CURRENT)
-  - chrome.tabGroups (query, group, update, TAB_GROUP_ID_NONE)
-  - chrome.contextMenus (create, removeAll, onClicked)
-  - chrome.commands (onCommand)
-  - chrome.scripting (insertCSS, executeScript)
-  - chrome.storage.local (get, set)
-  - chrome.runtime.id
-  - chrome.system.display (getInfo)
-  - chrome.runtime.onMessage / runtime.sendMessage
-- Document any programmatic content-script injection paths so the manifest or build step can register scripts declaratively if needed.
+Option A — Keep programmatic injection (smallest runtime change)
+- What to do:
+  1. Ensure your build emits the content script file as a distinct entry or asset with a predictable path inside the package (for example build/assets/contentScript.[hash].js or build/contentScripts/index.js).
+  2. Ensure that path is what contentScriptPath resolves to when you import it with ?script (CRXJS/Vite plugin currently handles that). If you switch away from @crxjs/vite-plugin for WXT builds, replicate that behavior by ensuring the bundler outputs a static file and that your manifest/wxt config does not strip or relocate it.
+  3. Ensure web_accessible_resources and packaging rules allow the background/service worker to inject the file at runtime. Some packagers or test harnesses will block programmatic injection of files unless they are exposed as web-accessible resources.
+  4. For CSS, either keep using insertCSS with the inline content (contentCss) or ensure a CSS asset is present and permitted to be injected.
+  5. Update your WXT build step to copy any built content script/CSS into the package root or to an expected path; update any manifest generation step to preserve those paths.
+- Pros:
+  - Minimal changes to runtime code; OSLSession.setup continues to dynamically inject as before.
+  - Keeps per-frame injection semantics and fine control over when scripts are added.
+- Cons:
+  - Slightly more fragile packaging: you must guarantee stable asset paths and that the packager exposes the assets for runtime injection.
 
-B. Manifest and packaging
-- Generate a concrete manifest JSON suitable for WXT packaging. Options:
-  - Add a build-step script that imports the CRX manifest generator and writes `dist/manifest.json` (this is safest).
-  - Or author a WXT-target manifest JSON and maintain it alongside src/manifest.ts if you plan to keep CRX builds.
-- Ensure the manifest includes:
-  - background/service_worker registration in the shape WXT expects
-  - content_scripts entries (or mark for programmatic injection)
-  - permissions and host_permissions
-  - web_accessible_resources (popup/options assets if needed)
-- Confirm icons and public assets copy into the WXT package.
+Option B — Declare content script(s) in the manifest (recommended for test stability)
+- What to do:
+  1. Add a content_scripts entry to the manifest (or to the WXT source manifest) declaring your content script and CSS. Example conceptual fields:
+     - matches: ['<all_urls>'] or a narrower set of matches
+     - js: ['assets/contentScript.js'] (the path in the packaged artifact)
+     - css: ['assets/contentScript.css'] (optional)
+     - run_at: 'document_idle' (or whichever timing you need)
+     - all_frames: true (if you need the script in all frames)
+  2. Modify src/common/extract-links.ts OSLSession.setup to treat `chrome.tabs.sendMessage(... 'ping' ...)` returning an unexpected result as a signal that the content script wasn't injected, but do not attempt to executeScript if the manifest-declared script should already be present. You can keep a short fallback path that tries to inject if the ping fails (useful for dev pages), but for WXT packaged builds the manifest will guarantee the script is present.
+  3. Ensure vite.config.ts builds the content script as a separate chunk that ends up at the path you list in the manifest. The existing rollup manualChunks can be used to force a contentScript chunk; alternatively add an explicit build entry for the content script so it gets emitted as a top-level file.
+  4. Add the CSS to web_accessible_resources or as part of the content_scripts css array so it is injected automatically and not via insertCSS.
+- Pros:
+  - Simpler and more predictable packaging for WXT and test harnesses — content scripts are present automatically in every tab/frame that matches.
+  - Less reliance on web_accessible_resources exposure rules for programmatic injection.
+- Cons:
+  - Changes runtime assumptions: the content script will run at page load rather than on-demand; you must ensure it is safe to run globally (the current content script already registers listeners and is passive, so this should be fine).
+  - Slightly more source edits: manifest.ts must be updated to include the new content_scripts entry and vite.config.ts may need a tweak so the content script gets emitted correctly.
 
-C. Build pipeline changes
-- Add new npm script(s) for WXT packaging:
-  - `wxt:build` — run the normal Vite build, then emit a WXT-ready manifest.json into the output directory.
-  - (Optional) `wxt:pack` — run the WXT packer/CLI if available to create the final artifact.
-- Update vite.config.ts so output directory and asset layout match WXT expectations (e.g., `dist/`).
-- If currently using @crxjs/vite-plugin, avoid using it for the WXT flow or gate it behind conditional build profiles so CRX-specific behavior does not interfere.
+Concrete, file-level actions to prepare Option B (manifest-declared content script)
+- src/manifest.ts
+  - Add a content_scripts entry that references the packaged path(s) for your content script JS and CSS. Make sure to include run_at and all_frames if you rely on frame behavior.
+  - Add the CSS to web_accessible_resources if your packer requires it.
+- vite.config.ts
+  - Ensure the content script entry is emitted as a separate file. Two approaches:
+    - Add an explicit input in the Rollup build configuration to emit src/contentScript/index.ts as its own output file.
+    - Or adapt manualChunks to ensure the content script chunk is named predictably (for example 'contentScript') and then reference that output path in the manifest generator.
+- src/common/extract-links.ts
+  - Make OSLSession.setup tolerant: first try the ping; if ping fails, log a warning and (a) either attempt programmatic injection as a fallback (useful for dev) or (b) throw a clear error if the packaged build relies on declarative content scripts.
+  - If you choose to remove the executeScript path entirely, delete the executeScript/insertCSS calls and rely on ping only.
+- html/popup.html (no change required unless you need to reference content script assets directly).
+- test setup (vitest.init.ts / WXT harness)
+  - Ensure test harness loads the content script into pages it creates (if using declarative manifest in test harness) or provide mocks for chrome.scripting.executeScript and chrome.tabs.sendMessage if keeping programmatic injection.
 
-D. Runtime compatibility (no shim for now)
-- Decision: do not add a runtime shim at this time. Rationale:
-  - WXT is being used as a build/test harness and will provide or the tests will mock chrome.* APIs (vitest-chrome is present in devDependencies).
-  - Avoid early abstraction; add a targeted wrapper later only if multi-runtime support (e.g., Firefox) is required.
-- Implication:
-  - Existing code continues to call chrome.* directly.
-  - Tests and WXT runtime must supply compatible mocks or polyfills when running in non-Chrome environments.
+Concrete, file-level actions to prepare Option A (keep programmatic injection)
+- vite.config.ts
+  - Make sure your bundler outputs the content script as an asset/file that the background can reference. The CRX plugin's ?script resolver currently does this — replicate the behavior for WXT builds or keep the CRX plugin during the asset-building stage.
+- Packaging / manifest generation
+  - Ensure the generated WXT manifest/web_accessible_resources include the built content script path so that executeScript can load it at runtime.
+- src/common/extract-links.ts
+  - No runtime change required by default; keep current executeScript/insertCSS usage.
+- Tests
+  - Provide mocks for chrome.scripting.executeScript/insertCSS in the WXT test harness if the test harness does not implement them natively.
 
-E. Messaging and content script interaction
-- Ensure message semantics are validated in the target test harness:
-  - If the test harness or WXT provides promise-based sendMessage, tests should align with that or use the provided polyfills.
-- For programmatic injection (scripting.executeScript / insertCSS), prefer:
-  - Declarative content_scripts in the manifest if WXT doesn't support programmatic injection during the same lifecycle.
-  - Otherwise retain programmatic injection but confirm WXT permits the used APIs.
+Which option to pick
+- If you want the least runtime-code changes and are comfortable ensuring the build step exposes the assets reliably, choose Option A.
+- If you want more predictable behavior in test harnesses and packaged WXT artifacts with fewer packaging caveats, choose Option B (manifest-declared content scripts). For this repo, Option B is recommended because:
+  - The content script is lightweight and idempotent (it registers a message handler and a selectionchange listener).
+  - Manifest-declared content scripts simplify test setup and avoid web_accessible_resources pitfalls.
 
-F. Feature detection and graceful degradation
-- Identify features that might be missing in alternate runtimes and add guards:
-  - chrome.tabGroups — if absent, hide tab-group UI, skip grouping.
-  - chrome.system.display — if absent, hide display-select UI.
-- Keep graceful fallbacks in code (feature-detect at runtime), so future porting is easier.
+Detailed checklist for Option B (recommended)
+- [ ] Add content_scripts entry into src/manifest.ts that lists the content script JS and CSS paths that will be present in the WXT package. Example conceptual snippet (adapt paths to your build output):
+  - content_scripts: [{ matches: ['<all_urls>'], js: ['assets/contentScript.js'], css: ['assets/contentScript.css'], run_at: 'document_idle', all_frames: true }]
+- [ ] Modify vite.config.ts to emit content script as a standalone output file (or add a build input).
+- [ ] Update manifest-writer/generator (scripts/generate-wxt-manifest.js or equivalent) to output the WXT manifest JSON with the content_scripts entry.
+- [ ] Update OSLSession.setup() to attempt a ping and only fallback to injection when ping fails (keep fallback for dev).
+- [ ] Ensure web_accessible_resources include any assets the popup or background injects at runtime (if still used).
+- [ ] Update tests to rely on manifest-declared content scripts or add test harness code to inject them.
 
-G. Types and test configuration
-- Keep src/global.d.ts and @types/chrome for development.
-- Configure Vitest/WXT test setup to register necessary globals/mocks (vitest.init.ts is present).
-- If tests run in WXT harness, ensure that the harness exposes the expected chrome.* APIs or that tests stub them.
+Validation steps (after implementing preferred option)
+- Run build: ensure the content script and css appear in the built package at the paths referenced by your manifest.
+  - Example: run your build and inspect the build directory for the content script file and css.
+- Package for WXT: run the wxt packaging step (or your manual packaging command) and inspect the produced artifact to ensure the content script file is included.
+- End-to-end smoke test in WXT/test harness:
+  - Load a test page, select some text with links and trigger the popup or context menu action; verify that the ping/message flows succeed and links are returned.
+  - Verify highlight/unhighlight messages work across frames if needed.
+- Unit tests:
+  - If you rely on declarative content scripts for tests, adjust your fixture pages to load the content script before running assertions.
+  - If you keep programmatic injection, mock chrome.scripting.executeScript and chrome.tabs.sendMessage in vitest setup.
 
-H. Tests and CI
-- Update CI scripts:
-  - Add a step that builds the WXT manifest and optionally packages the artifact for integration tests.
-  - Run unit tests with vitest as before; ensure test setup provides chrome mocks.
-- Add smoke tests that validate:
-  - Popup/options UI loads and saves settings.
-  - Background context menus appear and trigger actions.
-  - Content script extraction works and highlight messages function properly.
+Implementation notes and pitfalls
+- Asset path stability: hashed filenames are convenient for caching but complicate programmatic injection unless you map them reliably in a manifest generator step. Prefer deterministic outputs for content scripts (or a manifest generator that discovers hashed names).
+- web_accessible_resources: programmatic injection often requires the injected file to be web-accessible — ensure your packaged manifest exposes the path.
+- Module injection: MV3 supports module scripts in executeScript with the correct flags; if you use module-type content scripts, confirm that the target browser/test harness supports module injection. Manifest-declared scripts avoid this issue in many setups.
+- Fallback behavior: keep a small fallback that tries to inject the script if ping fails — this helps ensure the extension still works in development environments or when packaging differs.
 
-I. Validation checklist (manual & automated)
-- Popup opens and shows links from current tab.
-- Options page persists and loads settings via chrome.storage.local.
-- Context menu and keyboard commands trigger the correct background flows.
-- makeTabsForLinks handles deduplication, discard, focus, and tab-group behavior.
-- Content script injection and messaging across frames work as expected.
+Suggested next steps (pick one)
+- I can update src/manifest.ts to include a content_scripts entry and adjust vite.config.ts to emit a dedicated content script chunk (Option B). This will be a small, contained set of edits.
+- Or I can add notes and a manifest-generation script that preserves programmatic injection but guarantees asset paths for Option A.
+- Tell me which option you prefer and I will produce SEARCH/REPLACE blocks for the concrete file edits. I will not apply any edits until you confirm.
 
-J. Documentation & next steps
-- Update README with:
-  - New `wxt:build` script and instructions for producing the WXT manifest.
-  - Notes explaining that no runtime shim has been added yet and the reason.
-- When ready to actually apply code changes:
-  - Implement the manifest emitter or generator script.
-  - Add build scripts and (optionally) a `scripts/generate-wxt-manifest.js` helper.
-  - Run smoke tests and iterate.
+Example verification commands (run locally)
+```bash
+npm run build
+```
+```bash
+npm run test
+```
 
-Migration checklist (what to do, in order)
-- [ ] Audit chrome.* API usage and document feature flags.
-- [ ] Decide on a final manifest strategy (generate from src/manifest.ts vs. author a WXT manifest).
-- [ ] Add `wxt:build` script that produces dist/ + manifest.wxt.json (no code changes yet).
-- [ ] Update CI to exercise the `wxt:build` flow.
-- [ ] Add runtime feature detection (tabGroups, system.display) where not already present.
-- [ ] Run manual smoke tests in WXT/test harness and fix issues.
-- [ ] If multi-runtime support becomes a goal, implement a small runtime wrapper/shim and add tests for it.
-
-Estimated effort
-- Minimal (manifest + packaging changes only): 1–2 days
-- Moderate (add feature detection, test adjustments, iterative fixes): 3–5 days
-- Larger (if core APIs lack equivalents and require redesign): 1+ weeks
-
-Notes about future shim
-- When/if Firefox or another runtime is targeted:
-  - Add a small shim or wrapper module that centralizes all chrome.* usage.
-  - Use Vite/TypeScript aliasing to swap the shim for test or alternate runtime implementations.
-  - Keep the shim thin initially (pass-through) and add normalization only for APIs that differ meaningfully.
-
-If you'd like, I can update this plan further (e.g., include a precise manifest mapping, a sample `scripts/generate-wxt-manifest.js` outline, or concrete package.json/vite changes). I will not make any source edits until you explicitly approve them.
+If you want me to proceed and modify files to implement Option B (manifest-declared content scripts), reply "go ahead - Option B" and I'll prepare SEARCH/REPLACE blocks for src/manifest.ts, vite.config.ts, and a small change in src/common/extract-links.ts to add a tolerant fallback ping-only setup.
