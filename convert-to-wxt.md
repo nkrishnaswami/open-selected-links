@@ -29,6 +29,7 @@ Important note about content scripts and WXT
   - src/common/extract-links.ts imports the content script path using `import contentScriptPath from '../contentScript/index?script'` and injects it at runtime with `chrome.scripting.executeScript({ files: [contentScriptPath], ... })`
   - It also inserts CSS by importing contentCss from '../contentScript/index.css?inline' and calling `chrome.scripting.insertCSS`.
 - For WXT testing/packaging you must ensure the content script and CSS are present in the final packaged layout at stable paths that your runtime code passes to chrome.scripting.executeScript / insertCSS or else register the content script declaratively in the manifest in a way WXT expects.
+- In WXT projects, content scripts are typically declared in source via entrypoint files (for example, under an entrypoints/ directory), and WXT generates the manifest content_scripts from those definitions. If you choose that route later, you would move the current src/contentScript/index.ts logic into a WXT content-script entrypoint and configure matches/run_at/all_frames in source. This is optional if you keep programmatic injection for minimal change.
 
 Two recommended migration approaches (both supported by WXT; choose based on test/packaging constraints)
 
@@ -89,12 +90,17 @@ Concrete, file-level actions to prepare Option A (keep programmatic injection)
   - Provide mocks for chrome.scripting.executeScript/insertCSS in the WXT test harness if the test harness does not implement them natively.
 
 Which option to pick
-- If you want the least runtime-code changes and are comfortable ensuring the build step exposes the assets reliably, choose Option A.
-- If you want more predictable behavior in test harnesses and packaged WXT artifacts with fewer packaging caveats, choose Option B (manifest-declared content scripts). For this repo, Option B is recommended because:
-  - The content script is lightweight and idempotent (it registers a message handler and a selectionchange listener).
-  - Manifest-declared content scripts simplify test setup and avoid web_accessible_resources pitfalls.
+- If you want the least runtime-code changes and are comfortable ensuring the build step exposes the assets reliably, choose Option A. For this repo, Option A is recommended to minimize source and tree changes and limit edits strictly to framework-required differences.
+- If you prefer a more declarative, WXT-idiomatic setup for test stability, choose Option B (manifest-declared content scripts) as a follow-up iteration.
 
-Detailed checklist for Option B (recommended)
+Detailed checklist for Option A (recommended — minimal change)
+- [ ] Ensure the content script JS asset is emitted by the build with a stable, inject-able path that matches the value imported via `../contentScript/index?script` for the WXT build.
+- [ ] Ensure the CSS from `../contentScript/index.css?inline` is either inlined (current behavior) or emitted and permitted for `chrome.scripting.insertCSS` under your packaging rules.
+- [ ] Ensure the WXT-generated manifest preserves "scripting", required host_permissions or "activeTab", and does not strip any web_accessible_resources your packaging flow requires.
+- [ ] Keep `OSLSession.setup()` as-is (ping then inject on failure); verify in tests that `chrome.scripting.executeScript` and `insertCSS` are available or mocked.
+- [ ] Verify dynamic injection works with frameIds as implemented today.
+  
+Detailed checklist for Option B (alternative)
 - [ ] Add content_scripts entry into src/manifest.ts that lists the content script JS and CSS paths that will be present in the WXT package. Example conceptual snippet (adapt paths to your build output):
   - content_scripts: [{ matches: ['<all_urls>'], js: ['assets/contentScript.js'], css: ['assets/contentScript.css'], run_at: 'document_idle', all_frames: true }]
 - [ ] Modify vite.config.ts to emit content script as a standalone output file (or add a build input).
