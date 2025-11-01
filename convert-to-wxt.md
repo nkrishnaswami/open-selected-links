@@ -1,6 +1,6 @@
 # Porting "Open Selected Links" from CRX (CRXJS / Vite) to WXT — Conversion Plan
 
-Status: Draft — No code changes will be made at this time. This document is a migration/spec plan only. Wait for explicit approval before applying any edits.
+Status: Draft — No code changes will be made at this time. This document is a migration/spec plan only. Wait for explicit approval before applying any edits. All WXT artifacts will be generated in a separate sibling directory ../open-selected-links-xp to keep this repository unchanged until the migration is verified.
 
 This document describes a concrete, step-by-step plan to port the existing CRX-based Chrome extension ("Open Selected Links") to the WXT framework. It is intentionally implementation-focused (what to change and where) but does not provide line-level diffs. Use it as a checklist and guide while performing the migration.
 
@@ -31,7 +31,7 @@ Important note about content scripts and WXT
 - For WXT testing/packaging you must ensure the content script and CSS are present in the final packaged layout at stable paths that your runtime code passes to chrome.scripting.executeScript / insertCSS or else register the content script declaratively in the manifest in a way WXT expects.
 - In WXT projects, content scripts are typically declared in source via entrypoint files (for example, under an entrypoints/ directory), and WXT generates the manifest content_scripts from those definitions. If you choose that route later, you would move the current src/contentScript/index.ts logic into a WXT content-script entrypoint and configure matches/run_at/all_frames in source. This is optional if you keep programmatic injection for minimal change.
 
-Two recommended migration approaches (both supported by WXT; choose based on test/packaging constraints)
+Two recommended migration approaches (both supported by WXT; choose based on test/packaging constraints) — all migration work will target a separate sibling directory: ../open-selected-links-xp
 
 Option A — Keep programmatic injection (smallest runtime change)
 - What to do:
@@ -131,7 +131,7 @@ Suggested next steps (pick one)
 - Or I can add notes and a manifest-generation script that preserves programmatic injection but guarantees asset paths for Option A.
 - Tell me which option you prefer and I will produce SEARCH/REPLACE blocks for the concrete file edits. I will not apply any edits until you confirm.
 
-Example verification commands (run locally)
+Example verification commands (run locally, from ../open-selected-links-xp)
 ```bash
 npm run build
 ```
@@ -146,7 +146,7 @@ Hands-on: initialize a vanilla TypeScript WXT project and migrate this code (min
 Goal: set up a clean WXT project and bring over this extension’s code with as few source/tree changes as possible. Keep dynamic content-script injection and existing HTML/pages. Limit edits to framework-required differences.
 
 1) Scaffold a vanilla WXT + TypeScript project
-- Create a new project next to your current repo (a sibling directory named ../open-selected-links-xp):
+- Create a new project next to your current repo (a sibling directory named ../open-selected-links-xp). Do not initialize inside this repository; keep the WXT project fully separate:
   - npm create wxt@latest ../open-selected-links-xp -- --template typescript
   - cd ../open-selected-links-xp
   - npm i -D @types/chrome vitest vitest-chrome prettier
