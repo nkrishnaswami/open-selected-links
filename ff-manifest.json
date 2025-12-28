@@ -4,7 +4,6 @@
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.  BETA TESTING RELEASE",
   "manifest_version": 3,
   "background": {
-    "service_worker": "service-worker-loader.js",
     "scripts": ["service-worker-loader.js"],
     "type": "module"
   },
@@ -60,7 +59,10 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "@open-selected-links-ff"
+      "id": "@open-selected-links-ff",
+      "data_collection_permissions": {
+	 "required": ["none"]
+      }
     }
   }
 }
