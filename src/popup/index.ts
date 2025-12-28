@@ -1,11 +1,16 @@
+import browser from 'webextension-polyfill';
 import './index.css';
 import { OSLSession, makeTabsForLinks } from '../common/extract-links.js'
 import type { MakeTabOptions } from '../common/extract-links.js'
 import { loadSettings, InputType, SettingID, Settings } from '../common/settings.js'
 
-const DisplayInfo = new Map<string, chrome.system.display.DisplayInfo>(
-  (await chrome.system.display.getInfo())
-    .map(info => [info.id, info]));
+let DisplayInfo = new Map<string, any>();
+try {
+  const infos: [any] = await (browser as any).system.display.getInfo();
+  DisplayInfo = new Map(infos.map(info => [info.id, info]));
+} catch (e) {
+  console.log('system.display.getInfo not available; multi-display disabled');
+}
 
 const showError = (title: string, subtitle?: string) => {
   document.getElementById('error')!.innerText = title;
@@ -48,7 +53,7 @@ const getCurrentTabId = async () => {
     return parseInt(tabId);
   }
   try {
-    const [tab] = await chrome.tabs.query({
+    const [tab] = await browser.tabs.query({
       active: true,
       currentWindow: true,
     })
@@ -56,7 +61,7 @@ const getCurrentTabId = async () => {
     return tab.id
   } catch (e: any) {
     if (e instanceof TypeError) {
-      var [tab] = await chrome.tabs.query({
+      var [tab] = await browser.tabs.query({
         active: true,
         currentWindow: true,
       })
@@ -69,7 +74,7 @@ const getCurrentTabId = async () => {
 
 const getAllTabGroups = async () => {
   try {
-    return await chrome.tabGroups.query({})
+    return await browser.tabGroups.query({})
   } catch (e) {
     return []
   }
@@ -95,11 +100,10 @@ const openLinks = async (event: Event) => {
     options.display = DisplayInfo.get(displayOption);
     console.log('Requested display info', displayOption, options.display)
   }
-  window.close();
   if (getInput('sxs-checkbox').checked && links.length >= 2) {
     // Multi-display support
     // Open the first link in a new lefthand window
-    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.windowId = browser.windows.WINDOW_ID_NONE;
     options.focus = true;
     options.position = 'left';
     try {
@@ -110,7 +114,7 @@ const openLinks = async (event: Event) => {
     }
     // Open the rest of the links in a a new righthand window
     // options.focus = false;
-    options.windowId = chrome.windows.WINDOW_ID_NONE;
+    options.windowId = browser.windows.WINDOW_ID_NONE;
     options.position = 'right';
     try {
       await makeTabsForLinks(links.slice(1), options)
@@ -120,8 +124,8 @@ const openLinks = async (event: Event) => {
     }
   } else {
     options.windowId = getInput('new-window-checkbox').checked
-      ? chrome.windows.WINDOW_ID_NONE
-      : chrome.windows.WINDOW_ID_CURRENT;
+      ? browser.windows.WINDOW_ID_NONE
+      : browser.windows.WINDOW_ID_CURRENT;
     options.tabGroupName = getInput('tab-group-name').value || undefined;
     options.focus = getInput('focus-checkbox').checked;
     try {
@@ -132,6 +136,7 @@ const openLinks = async (event: Event) => {
       throw e
     }
   }
+  window.close();
 }
 
 const addLinkCheckboxes = async (links: string[], labels: string[], session: OSLSession) => {
@@ -150,12 +155,10 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
     if (duplicate) {
       rowElement.classList.add('duplicate');
     }
-    rowElement.addEventListener('onmouseover', async () => {
-      console.log('mouseover');
+    rowElement.addEventListener('mouseover', async () => {
       await session.highlight(idx);
     })
-    rowElement.addEventListener('onmouseout', async () => {
-      console.log('mouseout');
+    rowElement.addEventListener('mouseout', async () => {
       await session.unhighlight();
     })
     formElement.appendChild(rowElement);
@@ -180,7 +183,7 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
 }
 
 const renderForm = async function(links: string[], labels: string[], session: OSLSession) {
-  if (chrome.tabGroups === undefined) {
+  if (browser.tabGroups === undefined) {
     console.log('renderForm: Tab groups not supported: hiding UI');
     document.getElementById('tab-group-ui')!.style.display = 'none';
   }

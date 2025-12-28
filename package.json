@@ -24,22 +24,24 @@
     "coverage": "bunx --bun vitest run --coverage"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.0.0-beta.31",
+    "@crxjs/vite-plugin": "^2.3.0",
     "@happy-dom/global-registrator": "^14.12.3",
-    "@types/chrome": "^0.0.246",
     "@types/jsdom": "^21.1.7",
     "@types/puppeteer": "^7.0.4",
+    "@types/webextension-polyfill": "^0.12.4",
     "@vitest/coverage-v8": "^2.1.9",
     "gulp": "^4.0.2",
     "gulp-zip": "^6.1.0",
-    "prettier": "^3.5.2",
-    "typescript": "^5.7.3",
-    "vite": "^4.5.9",
-    "vitest": "^2.1.9",
-    "vitest-chrome": "^0.1.0"
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vite": "^4.5.14",
+    "vitest": "^2.1.9"
   },
   "openSelectedLinks": {
     "extension_id": "fklbicgdocbmcjmmbmnbbefhjneiecan",
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoVSLPbrAPwtiuV85/7TmiCyz7O6kyrbpWwpqiglqSw6faZkxd+mR7pmn+nYvM7Y9oxIdFpMGKC4z5U8O75bXSJb6jQ94GXknjWmEQVefg3oz958LCb837XQXxbRsOkzS2EZd2XnD8uRAdZmXM4SQUvPQ3EZu7JFjEEdStCOuSnzxvqVG86mIYsx/ebrEJSoCVTznu3BoM87J4u3b4KqzPyk1GoAr8fhTMvILqPsTdQQyK78QjZ40h0/5Trcfe9+qpiTW/nB6lK+2suRJZWb8RTisKnRjLXxpa7kVsk03Skr4LTcsHVyQFdsuGG8WavPz4PY3j3cLK+S6gPBM1M2+vwIDAQAB"
+  },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
   }
 }

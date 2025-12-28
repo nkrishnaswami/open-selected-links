@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import contentScriptPath from '../contentScript/index?script';
 import contentCss from '../contentScript/index.css?inline';
 
@@ -17,7 +18,7 @@ export class OSLSession {
 
   async setup() {
     try {
-      const response = await chrome.tabs.sendMessage(
+      const response = await browser.tabs.sendMessage(
 	this.tabId,
 	{id: 'ping'},
 	{frameId: this.frameId});
@@ -27,12 +28,16 @@ export class OSLSession {
     } catch(e) {
       console.log(e)
       console.log('inserting CSS')
-      await chrome.scripting.insertCSS({
-	css: contentCss,
-	target: {tabId: this.tabId, frameIds: [this.frameId]},
-      });
+      try {
+        await browser.scripting.insertCSS({
+          css: contentCss,
+          target: {tabId: this.tabId, frameIds: [this.frameId]},
+        });
+      } catch (cssErr) {
+        console.log('insertCSS failed (continuing):', cssErr);
+      }
       console.log('executing script')
-      await chrome.scripting.executeScript({
+      await browser.scripting.executeScript({
 	files: [contentScriptPath],
 	target: {tabId: this.tabId, frameIds: [this.frameId]}
       });
@@ -44,7 +49,7 @@ export class OSLSession {
 
   async getLinksAndLabels(): Promise<LinksAndLabels> {
     await this.setup();
-    const results = await chrome.tabs.sendMessage(
+    const results = await browser.tabs.sendMessage(
       this.tabId,
       {id: 'get_links'},
       {frameId: this.frameId});
@@ -54,7 +59,7 @@ export class OSLSession {
 
   async highlight(index: number) {
     console.log('Highlighting', index)
-    await chrome.tabs.sendMessage(
+    await browser.tabs.sendMessage(
       this.tabId,
       {id: 'set_highlight', index: index},
       {frameId: this.frameId});
@@ -62,7 +67,7 @@ export class OSLSession {
 
   async unhighlight() {
     console.log('Unhighlighting')
-    await chrome.tabs.sendMessage(
+    await browser.tabs.sendMessage(
       this.tabId,
       {id: 'clear_highlights'},
       {frameId: this.frameId});
@@ -77,7 +82,7 @@ export interface MakeTabOptions {
   deduplicate?: boolean,
   focus?: boolean,
   position?: 'left' | 'right',
-  display?: chrome.system.display.DisplayInfo
+  display?: any
 }
 
 export const makeTabsForLinks = async (links: string[], options: MakeTabOptions) => {
@@ -89,7 +94,7 @@ export const makeTabsForLinks = async (links: string[], options: MakeTabOptions)
   if (options.deduplicate) {
     links = Array.from(new Set(links))
   }
-  if (options.windowId === chrome.windows.WINDOW_ID_NONE) {
+  if (options.windowId === browser.windows.WINDOW_ID_NONE) {
     tabIds = await createWindow(links, options)
   } else {
     tabIds = await createTabs(links, options)
@@ -106,9 +111,16 @@ interface ScreenDetailed extends Screen {
   availLeft: number
 }
 
+interface Bounds {
+  height: number;
+  width: number;
+  top: number;
+  left: number;
+}
+
 const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
   console.log(`Creating window with ${links.length} tabs`)
-  var workArea: chrome.system.display.Bounds | undefined;
+  var workArea: Bounds | undefined;
   if (options.display) {
     workArea = options.display.workArea;
   } else if (window?.screen) {
@@ -121,7 +133,7 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
     }
   }
   console.log('Creating window: workArea:', workArea)
-  const windowCreateOptions: chrome.windows.CreateData = {
+  const windowCreateOptions: browser.Windows.CreateCreateDataType = {
     url: links,
     focused: options.focus,
   };
@@ -145,22 +157,29 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
     }
   }
   console.log('Creating window: options:', windowCreateOptions)
-  const newWindow = await chrome.windows.create(windowCreateOptions)
-  options.windowId = newWindow.id
+  var newWindow;
   const tabIds: number[] = []
+  try {
+    newWindow = await browser.windows.create(windowCreateOptions)
+  } catch(e) {
+    console.error('Error creating window:', e)
+    return tabIds
+  }
+  console.error('Created window:', newWindow)
+  options.windowId = newWindow.id
   if (!newWindow.tabs) {
     return tabIds;
   }
   for (const tab of newWindow.tabs) {
     if (tab.id !== undefined) {
       if (options.discard) {
-	chrome.tabs.discard(tab.id)
+	await browser.tabs.discard(tab.id)
       }
       tabIds.push(tab.id)
     }
   }
   if (options.focus) {
-    await chrome.tabs.update(tabIds[0], { active: true })
+    await browser.tabs.update(tabIds[0], { active: true })
   }
   return tabIds
 }
@@ -170,22 +189,29 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
   const tabIds: number[] = []
   for (const link of links) {
     console.log(`Creating tab for ${link}`)
-    const tab = await chrome.tabs.create({
-      url: link,
-      windowId: options.windowId,
-      active: false,
-    })
+    var tab;
+    try {
+      tab = await browser.tabs.create({
+	url: link,
+	windowId: options.windowId,
+	active: false,
+      })
+    } catch(e) {
+      console.error('Error creating tab', e);
+      continue
+    }
+    console.log(`Created tab`, tab)
     if (!tab.id) {
       continue;
     }
     if (options.discard) {
-      chrome.tabs.discard(tab.id)
+      browser.tabs.discard(tab.id)
     }
     tabIds.push(tab.id)
   }
   if (options.focus) {
     console.log('Making first tab active');
-    await chrome.tabs.update(tabIds[0], { active: true })
+    await browser.tabs.update(tabIds[0], { active: true })
   }
   return tabIds
 }
@@ -193,13 +219,13 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
 const groupTabs = async (tabIds: number[], windowId: number | undefined, tabGroupName: string) => {
   const groupId = parseInt(tabGroupName)
   if (!isNaN(groupId)) {
-    if (groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+    if (groupId !== browser.tabGroups.TAB_GROUP_ID_NONE) {
       console.log('Grouping tabs in existing group');
-      await chrome.tabs.group({ tabIds, groupId })
+      await browser.tabs.group({ tabIds, groupId })
     }
   } else {
     console.log('Grouping tabs in new group', tabGroupName);
-    const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId: windowId } })
-    await chrome.tabGroups.update(groupId, { title: tabGroupName })
+    const groupId = await browser.tabs.group({ tabIds, createProperties: { windowId: windowId } })
+    await browser.tabGroups.update(groupId, { title: tabGroupName })
   }
 }

@@ -38,9 +38,9 @@ test("Extension registers rules", async () => {
   const page = await browser.newPage();
   await page.goto(`chrome-extension://${EXTENSION_ID}/html/popup.html`);
  
-  expect(page.evaluate(`chrome.contextMenus.onClicked.hasListener(
+  expect(page.evaluate(`browser.contextMenus.onClicked.hasListener(
     handleOpenSelectedLinkMenuClick)`)).toBeTruthy;
-  expect(page.evaluate(`chrome.commands.onCommand.hasListener(
+  expect(page.evaluate(`browser.commands.onCommand.hasListener(
     handleOpenSelectedLinksCommand)`)).toBeTruthy;
 });
 
