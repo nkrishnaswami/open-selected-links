@@ -1,13 +1,14 @@
 {
   "name": "Open Selected Links",
   "displayName": "Open Selected Links",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "author": "Natarajan Krishnaswami <natarajan+osl@krishnaswami.org>",
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.",
   "type": "module",
   "license": "apache-2.0",
   "keywords": [
     "chrome-extension",
+    "browser-extension",
     "utility",
     "open-selected-links"
   ],
@@ -19,7 +20,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "bunx --bun vite preview",
     "fmt": "prettier --write '**/*.{ts,json,css,scss,md}'",
-    "zip": "bunx --bun build && bunx --bun src/zip.js",
+    "zip": "bun run build && bun run ./src/zip.js",
+    "zip-ff": "bun run build && cp ff-manifest.json build/manifest.json && (cd build; zip -r ../open-selected-links-ff.zip .)",
     "test": "bunx --bun vitest run",
     "coverage": "bunx --bun vitest run --coverage"
   },
