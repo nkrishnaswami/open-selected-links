@@ -18,10 +18,11 @@
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "tsc --noEmit && vite build",
+    "build-ff": "BUILD_TARGET=firefox bun run build",
     "preview": "bunx --bun vite preview",
     "fmt": "prettier --write '**/*.{ts,json,css,scss,md}'",
     "zip": "bun run build && bun run ./src/zip.js",
-    "zip-ff": "bun run build && cp ff-manifest.json build/manifest.json && (cd build; zip -r ../open-selected-links-ff.zip .)",
+    "zip-ff": "BUILD_TARGET=firefox bun run zip",
     "test": "bunx --bun vitest run",
     "coverage": "bunx --bun vitest run --coverage"
   },
