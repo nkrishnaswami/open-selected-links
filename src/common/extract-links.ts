@@ -19,31 +19,31 @@ export class OSLSession {
   async setup() {
     try {
       const response = await browser.tabs.sendMessage(
-	this.tabId,
-	{id: 'ping'},
-	{frameId: this.frameId});
+        this.tabId,
+        { id: 'ping' },
+        { frameId: this.frameId });
       if (response != 'ack') {
-	throw new Error(`Unexpected response; reinjecting content script: ${response}`)
+        throw new Error(`Unexpected response; reinjecting content script: ${response}`)
       }
-    } catch(e) {
+    } catch (e) {
       console.log(e)
       console.log('inserting CSS')
       try {
         await browser.scripting.insertCSS({
           css: contentCss,
-          target: {tabId: this.tabId, frameIds: [this.frameId]},
+          target: { tabId: this.tabId, frameIds: [this.frameId] },
         });
       } catch (cssErr) {
         console.log('insertCSS failed (continuing):', cssErr);
       }
       console.log('executing script')
       await browser.scripting.executeScript({
-	files: [contentScriptPath],
-	target: {tabId: this.tabId, frameIds: [this.frameId]}
+        files: [contentScriptPath],
+        target: { tabId: this.tabId, frameIds: [this.frameId] }
       });
       console.log('script executed')
-      await new Promise((resolve, reject) => {setTimeout(() => {resolve(void 1);}, 10)});
-      console.log('yielded and returned')      
+      await new Promise((resolve, reject) => { setTimeout(() => { resolve(void 1); }, 10) });
+      console.log('yielded and returned')
     }
   }
 
@@ -51,8 +51,8 @@ export class OSLSession {
     await this.setup();
     const results = await browser.tabs.sendMessage(
       this.tabId,
-      {id: 'get_links'},
-      {frameId: this.frameId});
+      { id: 'get_links' },
+      { frameId: this.frameId });
     console.log('results:', results)
     return results as LinksAndLabels;
   }
@@ -61,16 +61,16 @@ export class OSLSession {
     console.log('Highlighting', index)
     await browser.tabs.sendMessage(
       this.tabId,
-      {id: 'set_highlight', index: index},
-      {frameId: this.frameId});
+      { id: 'set_highlight', index: index },
+      { frameId: this.frameId });
   }
 
   async unhighlight() {
     console.log('Unhighlighting')
     await browser.tabs.sendMessage(
       this.tabId,
-      {id: 'clear_highlights'},
-      {frameId: this.frameId});
+      { id: 'clear_highlights' },
+      { frameId: this.frameId });
   }
 }
 
@@ -118,6 +118,32 @@ interface Bounds {
   left: number;
 }
 
+const discardTabs = (tabIds: number[]) => {
+  return new Promise((resolve, reject) => {
+    const tabIdSet = new Set(tabIds);
+    const listener = async (tabId: number, info: any, tab: any) => {
+      if (info.status != "complete") {
+	return;
+      }
+      if (tabIdSet.has(tabId)) {
+	try {
+          console.log('Discarding tab', tabId);
+          await browser.tabs.discard(tabId);
+	} catch (e) {
+          console.error('Error discarding tab', browser.runtime.lastError, e);
+	}
+	tabIdSet.delete(tabId);
+	if (tabIdSet.size == 0) {
+          console.log('Removing listener');
+          browser.tabs.onUpdated.removeListener(listener);
+	  resolve(undefined)
+	}
+      }
+    };
+    browser.tabs.onUpdated.addListener(listener)
+  });
+}
+
 const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
   console.log(`Creating window with ${links.length} tabs`)
   var workArea: Bounds | undefined;
@@ -161,25 +187,27 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
   const tabIds: number[] = []
   try {
     newWindow = await browser.windows.create(windowCreateOptions)
-  } catch(e) {
-    console.error('Error creating window:', e)
+  } catch (e) {
+    console.error('Error creating tab', browser.runtime.lastError, e);
     return tabIds
   }
-  console.error('Created window:', newWindow)
+  console.log('Created window:', newWindow)
   options.windowId = newWindow.id
   if (!newWindow.tabs) {
     return tabIds;
   }
   for (const tab of newWindow.tabs) {
     if (tab.id !== undefined) {
-      if (options.discard) {
-	await browser.tabs.discard(tab.id)
-      }
+      console.log('Returning tab', tab.id);
       tabIds.push(tab.id)
     }
   }
   if (options.focus) {
+    console.log('Giving focus to tab', tabIds[0]);
     await browser.tabs.update(tabIds[0], { active: true })
+  }
+  if (options.discard) {
+    await discardTabs(tabIds)
   }
   return tabIds
 }
@@ -192,26 +220,26 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
     var tab;
     try {
       tab = await browser.tabs.create({
-	url: link,
-	windowId: options.windowId,
-	active: false,
+        url: link,
+        windowId: options.windowId,
+        active: false,
       })
-    } catch(e) {
-      console.error('Error creating tab', e);
+    } catch (e) {
+      console.error('Error creating tab', browser.runtime.lastError, e);
       continue
     }
     console.log(`Created tab`, tab)
     if (!tab.id) {
       continue;
     }
-    if (options.discard) {
-      browser.tabs.discard(tab.id)
-    }
     tabIds.push(tab.id)
   }
   if (options.focus) {
     console.log('Making first tab active');
     await browser.tabs.update(tabIds[0], { active: true })
+  }
+  if (options.discard) {
+    await discardTabs(tabIds)
   }
   return tabIds
 }
