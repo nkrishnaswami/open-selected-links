@@ -1,8 +1,39 @@
 import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
+import fs from 'fs';
 
 //@ts-ignore
 const isDev = process.env.NODE_ENV == 'development'
+
+export function generateFirefoxManifest() {
+  const chromeManifest = JSON.parse(fs.readFileSync('build/manifest.json', 'utf-8'));
+  const firefoxManifest = {
+    ...chromeManifest,
+    background: {
+      scripts: ["service-worker-loader.js"],
+      type: "module"
+    },
+    browser_specific_settings: {
+      gecko: {
+        id: "@open-selected-links-ff",
+        data_collection_permissions: {
+          required: ["none"]
+        }
+      }
+    }
+  };
+  delete firefoxManifest.key;
+  const idx = firefoxManifest.permissions.indexOf('system.display');
+  if (idx >= 0) {
+    firefoxManifest.permissions.splice(idx, 1);
+  }
+  for (const resource of firefoxManifest.web_accessible_resources) {
+    if (resource.use_dynamic_url !== undefined) {
+      delete resource.use_dynamic_url;
+    }
+  }
+  fs.writeFileSync('build/manifest-firefox.json', JSON.stringify(firefoxManifest, null, 2));
+}
 
 export default defineManifest({
   name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,

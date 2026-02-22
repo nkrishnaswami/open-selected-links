@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { SelectionLinkExtractor } from './extractor';
 
 const extractor = new SelectionLinkExtractor();
@@ -11,9 +12,9 @@ export function invalidateExtractor() {
   extractor.invalidate()
 }
 
-export function handleMessage(msg: Message, sender: chrome.runtime.MessageSender, sendResponse: Function) {
+export function handleMessage(msg: Message, sender: browser.Runtime.MessageSender, sendResponse: Function) {
   console.log('Got message:', msg);
-  if (sender.id != chrome.runtime.id) {
+  if (sender.id != browser.runtime.id) {
     console.log('Unexpected message', msg, 'from sender', sender);
     return;
   }
@@ -41,7 +42,7 @@ export function handleMessage(msg: Message, sender: chrome.runtime.MessageSender
     sendResponse();
   } else if (msg.id == 'clear_highlights' && extractor.valid) {
     for (const anchor of document.querySelectorAll('a.open_selected_links_highlight')) {
-      anchor.classList.remove('osl_highlight');
+      anchor.classList.remove('open_selected_links_highlight');
     }
     sendResponse();
   }

@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 export enum SettingID {
   UseNewWindow = 'use_new_window',
   NewTabGroupName = 'new_tab_group_name',
@@ -95,7 +96,7 @@ export const default_settings: Settings = Object.fromEntries(
 
 export const loadSettings = async (): Promise<Settings> => {
 
-  const settings = (await chrome.storage.local.get('settings'))?.settings as unknown as Settings;
+  const settings = (await browser.storage.local.get('settings'))?.settings as unknown as Settings;
   if (!settings) {
     console.log('LoadSettings: returning defaults')
   } else {
@@ -106,5 +107,5 @@ export const loadSettings = async (): Promise<Settings> => {
 
 export const saveSettings = async (settings: Settings) => {
   console.log('Saving settings', settings)
-  await chrome.storage.local.set({ settings })
+  await browser.storage.local.set({ settings })
 }

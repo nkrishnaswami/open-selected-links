@@ -1,5 +1,4 @@
 import { expect, test } from 'vitest';
-import { chrome } from 'vitest-chrome';
 import { SelectionLinkExtractor } from '../src/contentScript/extractor';
 
 

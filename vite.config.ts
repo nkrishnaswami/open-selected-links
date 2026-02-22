@@ -1,7 +1,9 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite'
+import fs from 'fs';
 import { crx } from '@crxjs/vite-plugin'
 import manifest from './src/manifest'
+import { generateFirefoxManifest } from './src/manifest'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -26,7 +28,16 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [crx({ manifest })],
+    plugins: [crx({ manifest }), {
+      name: 'generate-firefox-manifest',
+      enforce: 'post',
+      closeBundle() {
+        if (process.env.BUILD_TARGET === 'firefox') {
+          generateFirefoxManifest();
+          fs.renameSync('build/manifest-firefox.json', 'build/manifest.json');
+        }
+      }
+    }],
     test: {
       include: ['test/**/*.test.ts'],
       setupFiles: './vitest.init.ts',
