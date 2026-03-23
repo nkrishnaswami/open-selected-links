@@ -83,6 +83,7 @@ export interface MakeTabOptions {
   focus?: boolean,
   position?: 'left' | 'right',
   display?: any
+  isPopup?: boolean,
 }
 
 export const makeTabsForLinks = async (links: string[], options: MakeTabOptions) => {
@@ -123,7 +124,7 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
   var workArea: Bounds | undefined;
   if (options.display) {
     workArea = options.display.workArea;
-  } else if (window?.screen) {
+  } else if (options.isPopup && window?.screen) {
     const screen = window.screen as ScreenDetailed
     workArea = {
       height: screen.availHeight ?? screen.height,

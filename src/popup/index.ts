@@ -94,6 +94,7 @@ const openLinks = async (event: Event) => {
   const options: {[key: string]: any} = {
     discard: getInput('discard-tab-checkbox').checked,
     deduplicate: getInput('deduplicate-links-checkbox').checked,
+    isPopup: true,
   }
   const displayOption = (document.getElementById('display') as HTMLInputElement | undefined)?.value;
   if (displayOption) {
