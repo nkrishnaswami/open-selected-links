@@ -1,3 +1,7 @@
+# Version 1.8.4
+* Fix open in new window from menu or command
+# Version 1.8.3
+* Fix "automatically snooze tabs" option
 # Version 1.8.2
 * Add side-by-side mode
 * Multiple-display support
