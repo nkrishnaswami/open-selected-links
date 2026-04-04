@@ -1,49 +1,72 @@
-import { afterEach, beforeEach, expect, test } from 'vitest';
-import puppeteer from 'puppeteer';
+import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import path from 'path';
-import packageData from '../package.json'
+import { fileURLToPath } from 'url';
 
-let browser;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const EXTENSION_ID = packageData.openSelectedLinks.extension_id;
+// Extension ID is stable because manifest.json includes a fixed public key.
+const CHROME_EXTENSION_ID = 'fklbicgdocbmcjmmbmnbbefhjneiecan';
+const EXTENSION_PATH = path.resolve(__dirname, '../build');
 
-beforeEach(async () => {
-  const pathToExtension = path.join(process.cwd(), 'build');
-  browser = await puppeteer.launch({
-    browser: 'chrome',
-    executablePath: '/usr/bin/chromium-browser',
+let context: BrowserContext;
+
+test.beforeEach(async () => {
+  context = await chromium.launchPersistentContext('', {
+    headless: false,
+    executablePath: (test.info().project.use as any).executablePath,
     args: [
-      `--disable-extensions-except=${pathToExtension}`,
-      `--load-extension=${pathToExtension}`,
+      `--disable-extensions-except=${EXTENSION_PATH}`,
+      `--load-extension=${EXTENSION_PATH}`,
+      '--no-sandbox',
     ],
   });
+  // Wait for the service worker to register before each test
+  if (context.serviceWorkers().length === 0) {
+    await context.waitForEvent('serviceworker');
+  }
 });
 
-afterEach(async () => {
-  await browser.close();
-  browser = undefined;
+test.afterEach(async () => {
+  await context.close();
 });
 
-
-test("Extension has service worker", async () => {
-  const serviceWorkerTarget = await browser.waitForTarget(
-    target => target.type() === 'service_worker'
-  );
-  const serviceWorker = await serviceWorkerTarget.worker();
-  expect(serviceWorker).toBeTruthy;
-}, 3000);
-
-
-test("Extension registers rules", async () => {
-  const page = await browser.newPage();
-  await page.goto(`chrome-extension://${EXTENSION_ID}/html/popup.html`);
- 
-  expect(page.evaluate(`browser.contextMenus.onClicked.hasListener(
-    handleOpenSelectedLinkMenuClick)`)).toBeTruthy;
-  expect(page.evaluate(`browser.commands.onCommand.hasListener(
-    handleOpenSelectedLinksCommand)`)).toBeTruthy;
+test('service worker registers', async () => {
+  const workers = context.serviceWorkers();
+  expect(workers).toHaveLength(1);
+  expect(workers[0].url()).toContain(CHROME_EXTENSION_ID);
 });
 
-test("Context menu works", async () => {});
+test('popup renders and tab group UI is visible on Chrome', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${CHROME_EXTENSION_ID}/html/popup.html`);
+  await page.waitForLoadState('domcontentloaded');
+  // Wait for popup JS to initialize
+  await page.waitForFunction(() => document.getElementById('open-button') !== null);
 
-test("Popup works", async () => {});
+  // Tab group UI should be visible on Chrome (browser.tabGroups is defined)
+  const tabGroupUi = page.locator('#tab-group-ui');
+  await expect(tabGroupUi).not.toHaveCSS('display', 'none');
+});
+
+test('popup core controls are present', async () => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${CHROME_EXTENSION_ID}/html/popup.html`);
+  await page.waitForLoadState('domcontentloaded');
+
+  await expect(page.locator('#open-button')).toBeVisible();
+  await expect(page.locator('#new-window-checkbox')).toBeVisible();
+  await expect(page.locator('#filter')).toBeVisible();
+});
+
+test('context menu and commands APIs available in service worker', async () => {
+  const worker = context.serviceWorkers()[0];
+  // In Chrome service workers, chrome.* APIs are always global
+  const hasApis = await worker.evaluate(() => {
+    return (
+      typeof chrome !== 'undefined' &&
+      typeof chrome.contextMenus !== 'undefined' &&
+      typeof chrome.commands !== 'undefined'
+    );
+  });
+  expect(hasApis).toBe(true);
+});
