@@ -23,14 +23,16 @@
     "fmt": "prettier --write '**/*.{ts,json,css,scss,md}'",
     "zip": "bun run build && bun run ./src/zip.js",
     "zip-ff": "BUILD_TARGET=firefox bun run zip",
-    "test": "bunx --bun vitest run",
-    "coverage": "bunx --bun vitest run --coverage"
+    "test": "bunx vitest run",
+    "test:e2e": "bun run build && bunx playwright test",
+    "test:e2e-ff": "bun run build-ff && bunx playwright test --project=firefox",
+    "coverage": "bunx vitest run --coverage"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.3.0",
     "@happy-dom/global-registrator": "^14.12.3",
+    "@playwright/test": "^1.59.1",
     "@types/jsdom": "^21.1.7",
-    "@types/puppeteer": "^7.0.4",
     "@types/webextension-polyfill": "^0.12.4",
     "@vitest/coverage-v8": "^2.1.9",
     "gulp": "^4.0.2",

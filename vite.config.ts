@@ -40,7 +40,8 @@ export default defineConfig(({ mode }) => {
     }],
     test: {
       include: ['test/**/*.test.ts'],
-      setupFiles: './vitest.init.ts',
+      exclude: ['test/e2e.test.ts'],
+      setupFiles: ['./happydom.init.ts', './chrome.init.ts'],
     },
   }
 })
