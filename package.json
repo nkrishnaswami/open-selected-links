@@ -24,7 +24,7 @@
     "zip": "bun run build && bun run ./src/zip.js",
     "zip-ff": "BUILD_TARGET=firefox bun run zip",
     "test": "bunx vitest run",
-    "test:e2e": "bun run build && bunx playwright test",
+    "test:e2e": "bun run build && bunx playwright test --project=chromium",
     "test:e2e-ff": "bun run build-ff && bunx playwright test --project=firefox",
     "coverage": "bunx vitest run --coverage"
   },
@@ -39,7 +39,7 @@
     "gulp-zip": "^6.1.0",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "vite": "^4.5.14",
+    "vite": "^5.4.21",
     "vitest": "^2.1.9"
   },
   "openSelectedLinks": {
