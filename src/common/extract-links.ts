@@ -122,26 +122,46 @@ interface Bounds {
 const discardTabs = (tabIds: number[]) => {
   return new Promise((resolve, reject) => {
     const tabIdSet = new Set(tabIds);
-    const listener = async (tabId: number, info: any, tab: any) => {
-      if (info.status != "complete") {
-	return;
-      }
-      if (tabIdSet.has(tabId)) {
-	try {
-          console.log('Discarding tab', tabId);
-          await browser.tabs.discard(tabId);
-	} catch (e) {
-          console.error('Error discarding tab', browser.runtime.lastError, e);
-	}
-	tabIdSet.delete(tabId);
-	if (tabIdSet.size == 0) {
-          console.log('Removing listener');
-          browser.tabs.onUpdated.removeListener(listener);
-	  resolve(undefined)
-	}
+
+    const cleanup = () => {
+      browser.tabs.onUpdated.removeListener(updatedListener);
+      browser.tabs.onRemoved.removeListener(removedListener);
+    };
+
+    const checkDone = () => {
+      if (tabIdSet.size == 0) {
+        console.log('Removing listeners');
+        cleanup();
+        resolve(undefined);
       }
     };
-    browser.tabs.onUpdated.addListener(listener)
+
+    const updatedListener = async (tabId: number, info: any, tab: any) => {
+      if (info.status != "complete") {
+        return;
+      }
+      if (tabIdSet.has(tabId)) {
+        try {
+          console.log('Discarding tab', tabId);
+          await browser.tabs.discard(tabId);
+        } catch (e) {
+          console.error('Error discarding tab', browser.runtime.lastError, e);
+        }
+        tabIdSet.delete(tabId);
+        checkDone();
+      }
+    };
+
+    const removedListener = (tabId: number) => {
+      if (tabIdSet.has(tabId)) {
+        console.log('Tab', tabId, 'closed before completing; skipping discard');
+        tabIdSet.delete(tabId);
+        checkDone();
+      }
+    };
+
+    browser.tabs.onUpdated.addListener(updatedListener);
+    browser.tabs.onRemoved.addListener(removedListener);
   });
 }
 
@@ -203,7 +223,7 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
       tabIds.push(tab.id)
     }
   }
-  if (options.focus) {
+  if (options.focus && tabIds.length > 0) {
     console.log('Giving focus to tab', tabIds[0]);
     await browser.tabs.update(tabIds[0], { active: true })
   }
@@ -235,7 +255,7 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
     }
     tabIds.push(tab.id)
   }
-  if (options.focus) {
+  if (options.focus && tabIds.length > 0) {
     console.log('Making first tab active');
     await browser.tabs.update(tabIds[0], { active: true })
   }

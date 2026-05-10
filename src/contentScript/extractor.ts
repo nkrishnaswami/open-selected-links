@@ -46,13 +46,17 @@ export class SelectionLinkExtractor {
       const result = element.closest('a')
       if (result != null) {
 	const anchor = result as HTMLAnchorElement;
-	var url = new URL(anchor.href, window.location.href);
-	console.debug(`Considering ${url.href}`);
-	if (url.protocol.startsWith('http')) {
-	  console.debug(`Adding ${url.href}`);
-	  this.links.push(url.href);
-	  this.labels.push(selection.toString().trim());
-	  this.anchors.push(anchor);
+	try {
+	  var url = new URL(anchor.href, window.location.href);
+	  console.debug(`Considering ${url.href}`);
+	  if (url.protocol.startsWith('http')) {
+	    console.debug(`Adding ${url.href}`);
+	    this.links.push(url.href);
+	    this.labels.push(selection.toString().trim());
+	    this.anchors.push(anchor);
+	  }
+	} catch(e) {
+	  console.log('Invalid URL', anchor.href);
 	}
       }
       if (this.debug) { console.log('Done processing fragment') }

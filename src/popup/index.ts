@@ -279,8 +279,14 @@ const filterRows = function() {
   const filterUrlsCheckbox = getInput('filter-urls-checkbox')!;
   const hideDuplicatesCheckbox = getInput('hide-duplicates-checkbox')!;
 
+  let needle: RegExp;
   try {
-    const needle = new RegExp(filterInput.innerText, 'ig');
+    needle = new RegExp(filterInput.innerText, 'ig');
+  } catch (e) {
+    console.log('Invalid regex; keeping previous filter state:', e);
+    return;
+  }
+  try {
     const filterUrls = filterUrlsCheckbox.checked;
     const hideDuplicates = hideDuplicatesCheckbox.checked;
     console.log(`re-filtering: filter is ${filterInput.innerText}, dedup=${hideDuplicates}`);
@@ -312,7 +318,6 @@ const filterRows = function() {
     }
   } catch (e: any) {
     console.log(e);
-    throw e;
   }
 };
 
