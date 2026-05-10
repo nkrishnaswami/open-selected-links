@@ -94,7 +94,7 @@ test.beforeAll(async () => {
     try {
       prefsContent = readFileSync(path.join(profileDir, 'prefs.js'), 'utf-8');
       if (prefsContent.includes('webextensions.uuids')) break;
-    } catch {}
+    } catch { /* file not yet written */ }
   }
 
   const match = prefsContent.match(/user_pref\("extensions\.webextensions\.uuids",\s*"(.+?)"\)/);

@@ -1,14 +1,13 @@
 import browser from 'webextension-polyfill';
 import './index.css';
 import { OSLSession, makeTabsForLinks } from '../common/extract-links.js'
-import type { MakeTabOptions } from '../common/extract-links.js'
 import { loadSettings, InputType, SettingID, Settings } from '../common/settings.js'
 
 let DisplayInfo = new Map<string, any>();
 try {
   const infos: [any] = await (browser as any).system.display.getInfo();
   DisplayInfo = new Map(infos.map(info => [info.id, info]));
-} catch (e) {
+} catch {
   console.log('system.display.getInfo not available; multi-display disabled');
 }
 
@@ -61,7 +60,7 @@ const getCurrentTabId = async () => {
     return tab.id
   } catch (e: any) {
     if (e instanceof TypeError) {
-      var [tab] = await browser.tabs.query({
+      const [tab] = await browser.tabs.query({
         active: true,
         currentWindow: true,
       })
@@ -75,7 +74,7 @@ const getCurrentTabId = async () => {
 const getAllTabGroups = async () => {
   try {
     return await browser.tabGroups.query({})
-  } catch (e) {
+  } catch {
     return []
   }
 }
@@ -144,7 +143,7 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
   // Set up the link selector inputs.
   const formElement: HTMLDivElement = document.getElementById('select-links-div')! as HTMLDivElement;
   const seen: Set<string> = new Set();
-  for (var idx = 0; idx < links.length; ++idx) {
+  for (let idx = 0; idx < links.length; ++idx) {
     const link = links[idx];
     const label = labels[idx];
     const duplicate = seen.has(link);
@@ -210,9 +209,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
 
     const startIndex = matchItem.index;
     const endIndex = startIndex + match.length;
-    var curIndex = 0; // index into root.textContent
-    var nodeIndex = 0; // index into current nodeValue
-    var matchedCount = 0; // number of matched characters highlighted
+    let curIndex = 0; // index into root.textContent
 
     let node = walker.firstChild() as Element;
     let nodeMatchStart = 0;
@@ -237,7 +234,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
       console.log(
         `Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`,
       );
-      let replacements = [];
+      const replacements = [];
       if (nodeMatchStart > 0) {
         console.log('prefix text:', text.slice(0, nodeMatchStart));
         replacements.push(text.slice(0, nodeMatchStart));
@@ -341,7 +338,7 @@ const setupFilter = function() {
   });
 }
 
-const toggleVisibleLinks = function(event: Event) {
+const toggleVisibleLinks = function(_event: Event) {
   for (const visibleLink of document.querySelectorAll(
     'div.row:not(.invisible) > input[name="select-links"]',
   ) as NodeListOf<HTMLInputElement>) {
@@ -376,7 +373,7 @@ const setupTabGroupNameInput = async function() {
 
 const setupSxS = () => {
   const sxsCheckbox = getInput('sxs-checkbox');
-  sxsCheckbox.addEventListener('change', (event: Event) => {
+  sxsCheckbox.addEventListener('change', (_event: Event) => {
     for (const id of ['new-window-checkbox', 'tab-group-name', 'focus-checkbox']) {
       const input = getInput(id);
       input.disabled = sxsCheckbox.checked;
@@ -389,7 +386,7 @@ const setupDisplay = () => {
     const sxsDisplay = getInput('display');
     sxsDisplay.parentElement!.classList.remove('invisible');
     sxsDisplay.disabled = false
-    for (const [id, display] of DisplayInfo) {
+    for (const [, display] of DisplayInfo) {
       const option = document.createElement('option') as HTMLOptionElement;
       option.value = display.id;
       option.textContent = display.name;
@@ -402,7 +399,7 @@ const setupHamburger = () => {
   const hamburger = document.getElementById('hamburger')!;
   const hamburgerCaption = document.getElementById('hamburger-caption')!
   const config = document.getElementById('config-container')!;
-  hamburger.addEventListener('click', (event: Event) => {
+  hamburger.addEventListener('click', (_event: Event) => {
     if (hamburger.classList.contains('hamburger-closed')) {
       hamburgerCaption.textContent = 'Tap hamburger to hide options'
       hamburger.classList.remove('hamburger-closed')

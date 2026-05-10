@@ -1,6 +1,6 @@
 // import { describe, it, expect, test, mock } from 'bun:test';
-import { describe, it, expect, test, vi } from 'vitest';
-import { OSLSession, MakeTabOptions, makeTabsForLinks } from '../src/common/extract-links';
+import { describe, expect, test, vi } from 'vitest';
+import { OSLSession, makeTabsForLinks } from '../src/common/extract-links';
 
 
 test('creating OSL session', () => {
@@ -9,14 +9,9 @@ test('creating OSL session', () => {
 })
 
 
-interface Message {
-  id: string,
-  index?: number,
-}
-
 browser.tabs.sendMessage = vi.fn();
 
-const fakeSendMessage = async (tabId, msg, frameId) => {
+const fakeSendMessage = async (tabId, msg, _frameId) => {
   if (msg.id == 'ping') {
     return 'ack'
   } else if (msg.id == 'get_links') {
@@ -54,7 +49,7 @@ test('highlighting', async () => {
   const session = new OSLSession(1);
   expect(session.tabId).toEqual(1)
   browser.tabs.sendMessage.mockReset();
-  var has_raised = false;
+  let has_raised = false;
   browser.tabs.sendMessage.mockImplementation(async (t, m, f) => {
     if (!has_raised) {
       has_raised = true;
@@ -62,7 +57,7 @@ test('highlighting', async () => {
     }
     return fakeSendMessage(t, m, f);
   });
-  const {links, labels} = await session.getLinksAndLabels();
+  const {links} = await session.getLinksAndLabels();
   expect(links).toHaveLength(1);
   await session.highlight(0);
   expect(browser.scripting.insertCSS.mock.calls.length).toEqual(1)
@@ -83,7 +78,7 @@ const setup_extra_chrome_mocks = () => {
   // queueMicrotask ensures the events fire after the Promise executor (which registers
   // the listener) returns and the caller suspends on `await discardTabs(...)`.
   browser.tabs.onUpdated = {
-    addListener: vi.fn((fn: Function) => {
+    addListener: vi.fn((fn: (tabId: number, info: {status: string}, tab: {id: number}) => void) => {
       const pending = [...pendingTabIds];
       pendingTabIds.length = 0;
       queueMicrotask(async () => {
@@ -143,7 +138,7 @@ const setup_extra_chrome_mocks = () => {
 
 test("incrementing mocks work", async () => {
   setup_extra_chrome_mocks();
-  var val = await browser.tabs.create({url: 'url', window_id: 9, focused: false});
+  let val = await browser.tabs.create({url: 'url', window_id: 9, focused: false});
   console.log('val is', val);
   expect(val.id).toEqual(100);
   val = await browser.tabs.create({url: 'url', window_id: 9, focused: true});

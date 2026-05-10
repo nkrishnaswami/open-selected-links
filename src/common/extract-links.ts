@@ -42,7 +42,7 @@ export class OSLSession {
         target: { tabId: this.tabId, frameIds: [this.frameId] }
       });
       console.log('script executed')
-      await new Promise((resolve, reject) => { setTimeout(() => { resolve(void 1); }, 10) });
+      await new Promise((resolve) => { setTimeout(() => { resolve(void 1); }, 10) });
       console.log('yielded and returned')
     }
   }
@@ -91,7 +91,7 @@ export const makeTabsForLinks = async (links: string[], options: MakeTabOptions)
     console.log('No links in selection')
     return
   }
-  var tabIds: number[];
+  let tabIds: number[];
   if (options.deduplicate) {
     links = Array.from(new Set(links))
   }
@@ -120,7 +120,7 @@ interface Bounds {
 }
 
 const discardTabs = (tabIds: number[]) => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const tabIdSet = new Set(tabIds);
 
     const cleanup = () => {
@@ -136,7 +136,7 @@ const discardTabs = (tabIds: number[]) => {
       }
     };
 
-    const updatedListener = async (tabId: number, info: any, tab: any) => {
+    const updatedListener = async (tabId: number, info: any, _tab: any) => {
       if (info.status != "complete") {
         return;
       }
@@ -167,7 +167,7 @@ const discardTabs = (tabIds: number[]) => {
 
 const createWindow = async (links: string[], options: MakeTabOptions): Promise<number[]> => {
   console.log(`Creating window with ${links.length} tabs`)
-  var workArea: Bounds | undefined;
+  let workArea: Bounds | undefined;
   if (options.display) {
     workArea = options.display.workArea;
   } else if (options.isPopup && window?.screen) {
@@ -204,7 +204,7 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
     }
   }
   console.log('Creating window: options:', windowCreateOptions)
-  var newWindow;
+  let newWindow;
   const tabIds: number[] = []
   try {
     newWindow = await browser.windows.create(windowCreateOptions)
@@ -238,7 +238,7 @@ const createTabs = async (links: string[], options: MakeTabOptions): Promise<num
   const tabIds: number[] = []
   for (const link of links) {
     console.log(`Creating tab for ${link}`)
-    var tab;
+    let tab;
     try {
       tab = await browser.tabs.create({
         url: link,

@@ -22,14 +22,14 @@ export class SelectionLinkExtractor {
     const baseURL = base ? base.href : window.location.href;
     for (const anchor of documentFragment.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>) {
       try {
-	var url = new URL(anchor.href, baseURL);
+	const url = new URL(anchor.href, baseURL);
 	if (url.protocol.startsWith('http')) {
 	  this.links.push(url.href);
 	  if (this.debug) { console.log('anchor:', anchor) };
 	  this.labels.push(anchor.textContent?.trim() ?? '[empty]');
 	  this.anchors.push(anchor);
 	}
-      } catch(e) {
+      } catch {
 	console.log('Invalid URL', anchor.href);
       }
     }
@@ -47,7 +47,7 @@ export class SelectionLinkExtractor {
       if (result != null) {
 	const anchor = result as HTMLAnchorElement;
 	try {
-	  var url = new URL(anchor.href, window.location.href);
+	  const url = new URL(anchor.href, window.location.href);
 	  console.debug(`Considering ${url.href}`);
 	  if (url.protocol.startsWith('http')) {
 	    console.debug(`Adding ${url.href}`);
@@ -55,7 +55,7 @@ export class SelectionLinkExtractor {
 	    this.labels.push(selection.toString().trim());
 	    this.anchors.push(anchor);
 	  }
-	} catch(e) {
+	} catch {
 	  console.log('Invalid URL', anchor.href);
 	}
       }
@@ -70,7 +70,7 @@ export class SelectionLinkExtractor {
       if (this.debug) { console.log('No selection') }
       return;
     }
-    for (var rangeIdx = 0; rangeIdx < selection.rangeCount; ++rangeIdx) {
+    for (let rangeIdx = 0; rangeIdx < selection.rangeCount; ++rangeIdx) {
       if (this.debug) { console.log('processing range', rangeIdx + 1) }
       this.processFragment(selection.getRangeAt(rangeIdx).cloneContents());
     }
