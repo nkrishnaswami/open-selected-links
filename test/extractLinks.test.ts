@@ -77,6 +77,27 @@ const BASE_TAB_ID = 100;
 const setup_extra_chrome_mocks = () => {
   let base_window_id = BASE_WINDOW_ID;
   let base_tab_id = BASE_TAB_ID;
+  const pendingTabIds: number[] = [];
+
+  // Real event emitter: fires queued tab IDs when discardTabs registers its listener.
+  // queueMicrotask ensures the events fire after the Promise executor (which registers
+  // the listener) returns and the caller suspends on `await discardTabs(...)`.
+  browser.tabs.onUpdated = {
+    addListener: vi.fn((fn: Function) => {
+      const pending = [...pendingTabIds];
+      pendingTabIds.length = 0;
+      queueMicrotask(async () => {
+        for (const tabId of pending) {
+          await fn(tabId, {status: 'complete'}, {id: tabId});
+        }
+      });
+    }),
+    removeListener: vi.fn(),
+  };
+  browser.tabs.onRemoved = {
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+  };
 
   browser.windows.create.mockReset();
   browser.windows.create.mockImplementation(async (options) => {
@@ -96,8 +117,9 @@ const setup_extra_chrome_mocks = () => {
   browser.tabs.create.mockReset();
   browser.tabs.create.mockImplementation(async (options) => {
     console.log('browser.tabs.create', options);
-    const {url, window_id, active} = options;
-    return {id: base_tab_id++};
+    const tab = {id: base_tab_id++};
+    pendingTabIds.push(tab.id);
+    return tab;
   });
 
   browser.tabs.group = vi.fn(async(options) => {

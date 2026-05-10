@@ -9,6 +9,8 @@ const browserMock = vi.hoisted(() => ({
     group: vi.fn(),
     discard: vi.fn(),
     update: vi.fn(),
+    onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+    onRemoved: { addListener: vi.fn(), removeListener: vi.fn() },
   },
   windows: {
     create: vi.fn(),
