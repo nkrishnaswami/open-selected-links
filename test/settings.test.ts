@@ -30,7 +30,7 @@ describe('setBoolean', () => {
   test('ignores the string key NewTabGroupName', () => {
     const s = { ...default_settings };
     const before = { ...s };
-    setBoolean(s, SettingID.NewTabGroupName, true as any);
+    setBoolean(s, SettingID.NewTabGroupName, true);
     expect(s).toEqual(before);
   });
 });
