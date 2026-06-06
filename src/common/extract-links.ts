@@ -81,6 +81,7 @@ export interface MakeTabOptions {
   discard?: boolean,
   deduplicate?: boolean,
   focus?: boolean,
+  incognito?: boolean,
   position?: 'left' | 'right',
   display?: any
   isPopup?: boolean,
@@ -183,6 +184,7 @@ const createWindow = async (links: string[], options: MakeTabOptions): Promise<n
   const windowCreateOptions: browser.Windows.CreateCreateDataType = {
     url: links,
     focused: options.focus,
+    incognito: options.incognito,
   };
   if (workArea) {
     if (options.position === 'left') {

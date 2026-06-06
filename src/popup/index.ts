@@ -29,6 +29,7 @@ const applySettings = async () => {
     [SettingID.AutoDiscard, 'discard-tab-checkbox'],
     [SettingID.Deduplicate, 'deduplicate-links-checkbox'],
     [SettingID.Focus, 'focus-checkbox'],
+    [SettingID.Incognito, 'incognito-checkbox'],
     [SettingID.PopupHideDuplicates, 'hide-duplicates-checkbox'],
     [SettingID.PopupMatchUrls, 'filter-urls-checkbox'],
   ];
@@ -44,12 +45,13 @@ const applySettings = async () => {
 }
 
 const URL_PARAMS = new URLSearchParams(window.location.search);
+let currentWindowIsIncognito = false;
 
-const getCurrentTabId = async () => {
+const getCurrentTabId = async (): Promise<{ id: number | undefined, incognito: boolean }> => {
   const tabId = URL_PARAMS.get("tab");
   if (tabId != null) {
     console.log('getCurrentTabId: using query tabId:', tabId)
-    return parseInt(tabId);
+    return { id: parseInt(tabId), incognito: false };
   }
   try {
     const [tab] = await browser.tabs.query({
@@ -57,7 +59,7 @@ const getCurrentTabId = async () => {
       currentWindow: true,
     })
     console.log('getCurrentTabId: Getting current tab:', tab)
-    return tab.id
+    return { id: tab.id, incognito: tab.incognito ?? false };
   } catch (e: any) {
     if (e instanceof TypeError) {
       const [tab] = await browser.tabs.query({
@@ -65,7 +67,7 @@ const getCurrentTabId = async () => {
         currentWindow: true,
       })
       console.log('getCurrentTabId: Getting current tab:', tab)
-      return tab.id
+      return { id: tab.id, incognito: tab.incognito ?? false };
     }
     throw e;
   }
@@ -102,9 +104,11 @@ const openLinks = async (event: Event) => {
   console.log('openLinks: Form:', form)
   const links = getCheckedUrls();
   console.log('openLinks: Links:', links)
+  const incognito = getInput('incognito-checkbox').checked;
   const options: {[key: string]: any} = {
     discard: getInput('discard-tab-checkbox').checked,
     deduplicate: getInput('deduplicate-links-checkbox').checked,
+    incognito,
     isPopup: true,
   }
   const displayOption = (document.getElementById('display') as HTMLInputElement | undefined)?.value;
@@ -135,7 +139,7 @@ const openLinks = async (event: Event) => {
       throw e
     }
   } else {
-    options.windowId = getInput('new-window-checkbox').checked
+    options.windowId = (getInput('new-window-checkbox').checked || (incognito && !currentWindowIsIncognito))
       ? browser.windows.WINDOW_ID_NONE
       : browser.windows.WINDOW_ID_CURRENT;
     options.tabGroupName = getInput('tab-group-name').value || undefined;
@@ -412,6 +416,26 @@ const setupDisplay = () => {
   }
 }
 
+const setupIncognito = async () => {
+  const cb = getInput('incognito-checkbox');
+  try {
+    const allowed = await browser.extension.isAllowedIncognitoAccess();
+    if (!allowed) {
+      cb.disabled = true;
+      cb.checked = false;
+      (document.getElementById('incognito-note') as HTMLElement).style.display = '';
+      return;
+    }
+  } catch {
+    // Firefox: always allowed, API may behave differently
+  }
+  // Pre-check when already in an incognito window so new windows inherit privacy.
+  // The user can uncheck to explicitly open in a regular window.
+  if (currentWindowIsIncognito) {
+    cb.checked = true;
+  }
+}
+
 const setupHamburger = () => {
   const hamburger = document.getElementById('hamburger')!;
   const hamburgerCaption = document.getElementById('hamburger-caption')!
@@ -438,7 +462,8 @@ const main = async () => {
 
     err.msg = 'Unable to get tab ID'
     err.sub = ''
-    const tabId = await getCurrentTabId();
+    const { id: tabId, incognito: tabIncognito } = await getCurrentTabId();
+    currentWindowIsIncognito = tabIncognito;
     if (tabId == undefined) {
       throw Error('Failed to get current tab')
     }
@@ -462,6 +487,7 @@ const main = async () => {
     setupCopyButton();
     setupSxS();
     setupDisplay();
+    await setupIncognito();
     setupHamburger();
     await setupTabGroupNameInput();
     renderForm(links, labels, session);
