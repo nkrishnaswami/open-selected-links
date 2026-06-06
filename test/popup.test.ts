@@ -294,12 +294,6 @@ describe('filterRows', () => {
 });
 
 describe('addLinkCheckboxes with duplicate URLs', () => {
-  const triggerFilter = (text: string) => {
-    const div = document.getElementById('filter')!;
-    (div as any).innerText = text;
-    div.dispatchEvent(new Event('input'));
-  };
-
   beforeEach(async () => {
     vi.resetModules();
     document.body.innerHTML = POPUP_HTML;
