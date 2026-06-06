@@ -326,6 +326,35 @@ describe('setupIncognito — access granted', () => {
   test('incognito note stays hidden', () => {
     expect((document.getElementById('incognito-note') as HTMLElement).style.display).toBe('none');
   });
+
+  test('incognito checkbox is not pre-checked when current window is regular', () => {
+    // setupBrowserMocks returns incognito: undefined (falsy) on the tab
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+describe('setupIncognito — access granted, current window is incognito', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    browser.tabs.query.mockResolvedValue([{ id: 42, incognito: true }]);
+    (browser as any).extension = { isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true) };
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('incognito checkbox is pre-checked to inherit window privacy', () => {
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).checked).toBe(true);
+  });
 });
 
 describe('setupIncognito — access denied', () => {
@@ -471,6 +500,16 @@ describe('openLinks — incognito already in incognito window', () => {
     // tabs.create is used for current-window mode; incognito is on the window not the tab,
     // so we just verify windows.create was NOT called (we're staying in the current window).
     expect(browser.windows.create).not.toHaveBeenCalled();
+  });
+
+  test('explicitly unchecking incognito then choosing new window opens a regular window', async () => {
+    (document.getElementById('incognito-checkbox') as HTMLInputElement).checked = false;
+    (document.getElementById('new-window-checkbox') as HTMLInputElement).checked = true;
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(browser.windows.create).toHaveBeenCalledWith(
+      expect.objectContaining({ incognito: false }),
+    );
   });
 });
 

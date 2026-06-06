@@ -424,9 +424,15 @@ const setupIncognito = async () => {
       cb.disabled = true;
       cb.checked = false;
       (document.getElementById('incognito-note') as HTMLElement).style.display = '';
+      return;
     }
   } catch {
     // Firefox: always allowed, API may behave differently
+  }
+  // Pre-check when already in an incognito window so new windows inherit privacy.
+  // The user can uncheck to explicitly open in a regular window.
+  if (currentWindowIsIncognito) {
+    cb.checked = true;
   }
 }
 

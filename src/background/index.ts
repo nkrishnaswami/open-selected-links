@@ -67,7 +67,7 @@ const processOSLRequest = async (osl_request_id: OSLRequestID, tab: browser.Tabs
     discard: settings.auto_discard,
     deduplicate: settings.deduplicate,
     focus: settings.focus,
-    incognito: settings.incognito,
+    incognito: settings.incognito || (tab.incognito ?? false),
   };
   if (osl_request_id === OSLRequestID.CurrentWindow) {
     options.windowId = (settings.incognito && !tab.incognito)
