@@ -1,5 +1,5 @@
 // import { describe, it, expect, test, mock } from 'bun:test';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, test, vi } from 'vitest';
 import { OSLSession, makeTabsForLinks } from '../src/common/extract-links';
 
 
@@ -65,6 +65,38 @@ test('highlighting', async () => {
   expect(browser.scripting.insertCSS.mock.calls.length).toEqual(1)
   await session.unhighlight();
 })
+
+test('setup: ping returning non-ack triggers content script injection', async () => {
+  browser.scripting = {
+    executeScript: vi.fn(),
+    insertCSS: vi.fn(),
+  };
+  const session = new OSLSession(1);
+  browser.tabs.sendMessage.mockReset();
+  browser.tabs.sendMessage.mockImplementation(async (t, m, f) => {
+    if (m.id === 'ping') return 'unexpected';
+    return fakeSendMessage(t, m, f);
+  });
+  const { links } = await session.getLinksAndLabels();
+  expect(links).toHaveLength(1);
+  expect(browser.scripting.executeScript).toHaveBeenCalled();
+});
+
+test('setup: insertCSS throwing is caught and injection continues', async () => {
+  browser.scripting = {
+    executeScript: vi.fn(),
+    insertCSS: vi.fn().mockRejectedValue(new Error('insertCSS failed')),
+  };
+  const session = new OSLSession(1);
+  browser.tabs.sendMessage.mockReset();
+  browser.tabs.sendMessage.mockImplementation(async (t, m, f) => {
+    if (m.id === 'ping') return 'unexpected';
+    return fakeSendMessage(t, m, f);
+  });
+  const { links } = await session.getLinksAndLabels();
+  expect(links).toHaveLength(1);
+  expect(browser.scripting.executeScript).toHaveBeenCalled();
+});
 
 const BASE_WINDOW_ID = 1;
 const BASE_TAB_ID = 100;
@@ -168,7 +200,7 @@ describe('make_tabs_for_links: new window', () => {
      async (tabGroupName, discard, deduplicate, focus) => {
        console.log('Test case:', tabGroupName, discard, deduplicate, focus);
        setup_extra_chrome_mocks();
-       const tabs = [{id: BASE_TAB_ID}] 
+       const tabs = [{id: BASE_TAB_ID}]
        if (!deduplicate) {
 	 tabs.push({id: BASE_TAB_ID + 1})
        }
@@ -178,7 +210,7 @@ describe('make_tabs_for_links: new window', () => {
 	 tabGroupName,
 	 discard,
 	 deduplicate,
-	 focus,    
+	 focus,
        });
        expect(browser.windows.create).toHaveBeenCalled()
        expect(browser.windows.create.mock.calls[0][0].url).toHaveLength(tabs.length)
@@ -187,7 +219,7 @@ describe('make_tabs_for_links: new window', () => {
        if (discard) {
 	 expect(browser.tabs.discard).toHaveBeenCalled();
        }
-       
+
        if (tabGroupName !== undefined && tabGroupName !== browser.tabGroups.TAB_GROUP_ID_NONE) {
  	 expect(browser.tabs.group).toHaveBeenCalled()
 	 expect(browser.tabs.group.mock.calls[0][0].tabIds).toEqual(tabs.map((x) => x.id))
@@ -221,19 +253,19 @@ describe('make_tabs_for_links: new tabs', () => {
      async (tabGroupName, discard, deduplicate, focus) => {
        setup_extra_chrome_mocks();
 
-       const tabs = [{id: BASE_TAB_ID}] 
+       const tabs = [{id: BASE_TAB_ID}]
        if (!deduplicate) {
 	 tabs.push({id: BASE_TAB_ID + 1})
        }
        console.log('options', {tabGroupName, discard, deduplicate, focus})
-       
+
        await makeTabsForLinks(["http://localhost/a", "http://localhost/a"], {
 	 windowId: browser.windows.WINDOW_ID_CUR,
 	 frameId: undefined,
 	 tabGroupName,
 	 discard,
 	 deduplicate,
-	 focus,    
+	 focus,
        });
        expect(browser.tabs.create).toHaveBeenCalled()
        expect(browser.tabs.create.mock.calls).toHaveLength(tabs.length)
@@ -249,4 +281,194 @@ describe('make_tabs_for_links: new tabs', () => {
 	 }
        }
      });
+});
+
+describe('make_tabs_for_links: new window with display', () => {
+  const fakeDisplay = {
+    workArea: { top: 100, left: 200, width: 1920, height: 1080 }
+  };
+
+  test('position left halves width and forces focus', async () => {
+    setup_extra_chrome_mocks();
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+      display: fakeDisplay,
+      position: 'left',
+    });
+    const opts = browser.windows.create.mock.calls[0][0];
+    expect(opts.top).toEqual(100);
+    expect(opts.left).toEqual(200);
+    expect(opts.width).toEqual(960);
+    expect(opts.height).toEqual(1080);
+    expect(opts.focused).toEqual(true);
+  });
+
+  test('position right offsets left and does not force focus', async () => {
+    setup_extra_chrome_mocks();
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+      display: fakeDisplay,
+      position: 'right',
+    });
+    const opts = browser.windows.create.mock.calls[0][0];
+    expect(opts.top).toEqual(100);
+    expect(opts.left).toEqual(1160);  // 200 + floor(1920/2)
+    expect(opts.width).toEqual(960);
+    expect(opts.height).toEqual(1080);
+    expect(opts.focused).toEqual(false);
+  });
+
+  test('display only (no position) sets top/left but not size', async () => {
+    setup_extra_chrome_mocks();
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+      display: fakeDisplay,
+    });
+    const opts = browser.windows.create.mock.calls[0][0];
+    expect(opts.top).toEqual(100);
+    expect(opts.left).toEqual(200);
+    expect(opts.width).toBeUndefined();
+    expect(opts.height).toBeUndefined();
+  });
+});
+
+describe('make_tabs_for_links: new window with isPopup', () => {
+  let savedScreen: Screen;
+
+  beforeEach(() => {
+    savedScreen = window.screen;
+    Object.defineProperty(window, 'screen', {
+      value: { availHeight: 900, availWidth: 1600, availTop: 50, availLeft: 0 },
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'screen', { value: savedScreen, configurable: true });
+  });
+
+  test('isPopup with position left uses screen dimensions', async () => {
+    setup_extra_chrome_mocks();
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+      isPopup: true,
+      position: 'left',
+    });
+    const opts = browser.windows.create.mock.calls[0][0];
+    expect(opts.top).toEqual(50);
+    expect(opts.left).toEqual(0);
+    expect(opts.width).toEqual(800);  // floor(1600/2)
+    expect(opts.height).toEqual(900);
+    expect(opts.focused).toEqual(true);
+  });
+});
+
+describe('make_tabs_for_links: error handling', () => {
+  test('empty links returns early without creating tabs', async () => {
+    setup_extra_chrome_mocks();
+    await makeTabsForLinks([], { windowId: browser.windows.WINDOW_ID_CUR });
+    expect(browser.tabs.create).not.toHaveBeenCalled();
+  });
+
+  test('discardTabs: non-complete onUpdated status is ignored', async () => {
+    setup_extra_chrome_mocks();
+    browser.tabs.onUpdated = {
+      addListener: vi.fn((fn: (tabId: number, info: {status: string}, tab: {id: number}) => void) => {
+        queueMicrotask(async () => {
+          await fn(BASE_TAB_ID, {status: 'loading'}, {id: BASE_TAB_ID});
+          await fn(BASE_TAB_ID, {status: 'complete'}, {id: BASE_TAB_ID});
+        });
+      }),
+      removeListener: vi.fn(),
+    };
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_CUR,
+      discard: true,
+    });
+    expect(browser.tabs.discard).toHaveBeenCalledWith(BASE_TAB_ID);
+  });
+
+  test('createWindow: windows.create throws does not propagate', async () => {
+    setup_extra_chrome_mocks();
+    browser.windows.create.mockImplementation(async () => {
+      throw new Error('create failed');
+    });
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+    });
+    expect(browser.windows.create).toHaveBeenCalled();
+  });
+
+  test('createWindow: window returned with no tabs property', async () => {
+    setup_extra_chrome_mocks();
+    browser.windows.create.mockImplementation(async () => ({ id: 1 }));
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+    });
+    expect(browser.windows.create).toHaveBeenCalled();
+  });
+
+  test('createWindow: tab with no id is skipped', async () => {
+    setup_extra_chrome_mocks();
+    browser.windows.create.mockImplementation(async () => ({
+      id: 1,
+      tabs: [{ url: 'http://localhost/a' }],  // no id field
+    }));
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_NONE,
+    });
+    expect(browser.windows.create).toHaveBeenCalled();
+  });
+
+  test('createTabs: tabs.create throwing skips that url and continues', async () => {
+    setup_extra_chrome_mocks();
+    browser.tabs.create.mockImplementation(async () => {
+      throw new Error('create failed');
+    });
+    await makeTabsForLinks(['http://localhost/a', 'http://localhost/b'], {
+      windowId: browser.windows.WINDOW_ID_CUR,
+    });
+    expect(browser.tabs.create).toHaveBeenCalledTimes(2);
+  });
+
+  test('createTabs: tab with no id is skipped', async () => {
+    setup_extra_chrome_mocks();
+    browser.tabs.create.mockImplementation(async () => ({}));  // no id
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_CUR,
+    });
+    expect(browser.tabs.create).toHaveBeenCalled();
+  });
+
+  test('discardTabs: discard throwing is caught and still resolves', async () => {
+    setup_extra_chrome_mocks();
+    browser.tabs.discard = vi.fn(async () => {
+      throw new Error('discard failed');
+    });
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_CUR,
+      discard: true,
+    });
+    expect(browser.tabs.discard).toHaveBeenCalled();
+  });
+
+  test('discardTabs: tab removed before load completes skips discard', async () => {
+    setup_extra_chrome_mocks();
+    // onUpdated never fires (tab never completes loading); onRemoved fires instead
+    browser.tabs.onUpdated = {
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    };
+    browser.tabs.onRemoved = {
+      addListener: vi.fn((fn: (tabId: number) => void) => {
+        queueMicrotask(() => fn(BASE_TAB_ID));
+      }),
+      removeListener: vi.fn(),
+    };
+    await makeTabsForLinks(['http://localhost/a'], {
+      windowId: browser.windows.WINDOW_ID_CUR,
+      discard: true,
+    });
+    expect(browser.tabs.discard).not.toHaveBeenCalled();
+  });
 });
