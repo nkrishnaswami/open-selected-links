@@ -280,6 +280,7 @@ fieldset > div input[type="checkbox"] {
   overflow-y: auto;
   flex: 1 1 auto;
   padding: 2px 6px;
+  max-height: calc(100vh - 200px);
 }
 
 #select-links-div::-webkit-scrollbar {
