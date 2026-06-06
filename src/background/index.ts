@@ -7,18 +7,21 @@ enum OSLRequestID {
   CurrentWindow = 'current_window',
   NewWindow = 'new_window',
   NewTabGroup = 'new_tab_group',
+  Copy = 'copy',
 }
 
 enum OSLMenuItemID {
   CurrentWindow = 'open-selected-links-cur-window',
   NewWindow = 'open-selected-links-new-window',
   NewTabGroup = 'open-selected-links-new-tab-group',
+  Copy = 'open-selected-links-copy',
 }
 
 enum OSLCommandID {
   CurrentWindow = 'osl_in_tabs',
   NewWindow = 'osl_in_window',
   NewTabGroup = 'osl_in_tab_group',
+  Copy = 'osl_copy',
 }
 
 interface OSLRequestSpec {
@@ -44,7 +47,12 @@ const oslRequestSpecs: OSLRequestSpec[] = [
     title: 'Open all selected links in a new tab group',
     menu_item_id: OSLMenuItemID.NewTabGroup,
     command: OSLCommandID.NewTabGroup,
-  } 
+  }, {
+    id: OSLRequestID.Copy,
+    title: 'Copy all selected links to clipboard',
+    menu_item_id: OSLMenuItemID.Copy,
+    command: OSLCommandID.Copy,
+  }
 ];
 
 const oslRequestIDsByMenuItemID = Object.fromEntries(
@@ -67,7 +75,7 @@ const processOSLRequest = async (osl_request_id: OSLRequestID, tab: browser.Tabs
   } else if (osl_request_id === OSLRequestID.NewTabGroup) {
     options.windowId = browser.windows.WINDOW_ID_CURRENT;
     options.tabGroupName = settings.new_tab_group_name || "New Tab Group";
-  } else {
+  } else if (osl_request_id !== OSLRequestID.Copy) {
     // Not our circus, not our monkeys.
     return;
   }
@@ -77,7 +85,15 @@ const processOSLRequest = async (osl_request_id: OSLRequestID, tab: browser.Tabs
   }
   const session = new OSLSession(tab.id, frame_id);
   const {links} = await session.getLinksAndLabels();
-  await makeTabsForLinks(links, options);
+  if (osl_request_id === OSLRequestID.Copy) {
+    await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (urls: string[]) => navigator.clipboard.writeText(urls.join('\n')),
+      args: [links],
+    });
+  } else {
+    await makeTabsForLinks(links, options);
+  }
 }
 
 const handleOpenSelectedLinkMenuClick = async (info: browser.Menus.OnClickData, tab: browser.Tabs.Tab | undefined) => {

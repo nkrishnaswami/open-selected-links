@@ -79,16 +79,28 @@ const getAllTabGroups = async () => {
   }
 }
 
+const getCheckedUrls = (): string[] => {
+  const inputs: NodeListOf<HTMLInputElement> = document.querySelectorAll('input[name="select-links"]:checked');
+  const links: string[] = [];
+  for (const elt of inputs) {
+    links.push(elt.parentElement!.querySelector('a')!.href!);
+  }
+  return links;
+}
+
+const copyLinks = async (_event: Event) => {
+  const links = getCheckedUrls();
+  await navigator.clipboard.writeText(links.join('\n'));
+  const button = document.getElementById('copy-button') as HTMLButtonElement;
+  button.textContent = 'Copied!';
+  setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+}
+
 const openLinks = async (event: Event) => {
   console.log('openLinks: Button pressed! Form is', event)
   const form = (event.target! as HTMLButtonElement).parentElement
   console.log('openLinks: Form:', form)
-  const inputs: NodeListOf<HTMLInputElement> = document.querySelectorAll('input[name="select-links"]:checked')
-  const links: string[] = [];
-  console.log('openLinks: Checked', inputs)
-  for (const elt of inputs) {
-    links.push(elt.parentElement!.querySelector('a')!.href!)
-  }
+  const links = getCheckedUrls();
   console.log('openLinks: Links:', links)
   const options: {[key: string]: any} = {
     discard: getInput('discard-tab-checkbox').checked,
@@ -357,6 +369,11 @@ const setupOpenButton = function() {
   buttonElement.addEventListener('click', openLinks);
 }
 
+const setupCopyButton = function() {
+  const buttonElement = document.getElementById('copy-button')!;
+  buttonElement.addEventListener('click', copyLinks);
+}
+
 const setupTabGroupNameInput = async function() {
   const listElement = document.getElementById('tab-group-list')!;
   console.log('Adding tab groups to', listElement);
@@ -442,6 +459,7 @@ const main = async () => {
     setupFilter();
     setupToggleButton();
     setupOpenButton();
+    setupCopyButton();
     setupSxS();
     setupDisplay();
     setupHamburger();
