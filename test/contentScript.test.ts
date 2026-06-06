@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { SelectionLinkExtractor } from '../src/contentScript/extractor';
 
 
@@ -154,6 +154,104 @@ test('Cross container', () => {
     'http://localhost/b',
     'http://localhost/d',
   ]);
+});
+
+test('processSelection: getSelection returning null exits early', () => {
+  document.body.innerHTML = doc1;
+  const extractor = new SelectionLinkExtractor();
+  vi.spyOn(window, 'getSelection').mockReturnValueOnce(null);
+  extractor.processSelection();
+  expect(extractor.valid).toBeFalsy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: non-http protocol is skipped', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  a.href = 'ftp://example.com/file';
+  a.textContent = 'FTP link';
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: invalid URL is caught and skipped', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  Object.defineProperty(a, 'href', { get: () => 'http://[invalid' });
+  a.setAttribute('href', 'x');  // needed to match a[href] selector
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: uses <base> href when present in document head', () => {
+  // happy-dom resolves anchor.href against window.location before processFragment
+  // sees it, so we call processFragment directly with a synthetic relative href.
+  document.head.innerHTML = '<base href="https://base.example.com/">';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  Object.defineProperty(a, 'href', { get: () => 'page.html' });
+  a.setAttribute('href', 'page.html');
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  document.head.innerHTML = '';
+  expect(extractor.links).toEqual(['https://base.example.com/page.html']);
+});
+
+test('processSelection: debug mode logs without affecting output', () => {
+  document.body.innerHTML = doc1;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  extractor.debug = true;
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links.length).toBeGreaterThan(0);
+});
+
+test('processAnchorAncestor: text node anchorNode uses parentElement', () => {
+  document.body.innerHTML = `<a href="http://localhost/a">link text</a>`;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const a = document.querySelector('a');
+  const textNode = a.firstChild;  // Text node, not Element
+  const selection = document.getSelection();
+  selection.setBaseAndExtent(textNode, 0, textNode, 4);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/a']);
+});
+
+test('processAnchorAncestor: no anchor ancestor adds no links', () => {
+  document.body.innerHTML = `<p id="p">plain text with no links</p>`;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const p = document.getElementById('p');
+  const selection = document.getSelection();
+  selection.selectAllChildren(p);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processAnchorAncestor: invalid URL in ancestor anchor is caught', () => {
+  document.body.innerHTML = `<a id="a">text</a>`;
+  window.location.href = 'http://localhost/';
+  const anchor = document.getElementById('a') as HTMLAnchorElement;
+  Object.defineProperty(anchor, 'href', { get: () => 'http://[invalid', configurable: true });
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(anchor);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
 });
 
 test('Anchor ancestor is found', () => {
