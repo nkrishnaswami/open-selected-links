@@ -1,3 +1,7 @@
+# Version 1.8.5
+* Add copy links to clipboard (#28)
+  * Copy button in popup writes checked URLs (newline-separated) to clipboard
+  * Context menu item and keyboard shortcut (`osl_copy`) for copy without opening the popup
 # Version 1.8.4
 * Fix open in new window from menu or command
 # Version 1.8.3
