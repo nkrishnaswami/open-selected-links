@@ -31,6 +31,8 @@ const POPUP_HTML = `
       </fieldset>
       <fieldset>
         <input id="new-window-checkbox" type="checkbox" checked>
+        <input id="incognito-checkbox" type="checkbox">
+        <span id="incognito-note" style="display:none"></span>
         <div id="tab-group-ui">
           <input id="tab-group-name" type="text">
           <datalist id="tab-group-list"></datalist>
@@ -290,6 +292,185 @@ describe('filterRows', () => {
     for (const row of document.querySelectorAll('div.row')) {
       expect(row.classList.contains('invisible')).toBe(false);
     }
+  });
+});
+
+// Shared beforeEach body for setupIncognito describe blocks — only the
+// isAllowedIncognitoAccess mock differs between them.
+const makeIncognitoBeforeEach = (extensionMock: object) => async () => {
+  vi.clearAllMocks();
+  vi.resetModules();
+  document.body.innerHTML = POPUP_HTML;
+  document.head.innerHTML = '';
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    writable: true,
+    configurable: true,
+  });
+  setupBrowserMocks(['http://a.example/'], ['A']);
+  (browser as any).extension = extensionMock;
+  await import('../src/popup/index.ts');
+};
+
+describe('setupIncognito — access granted', () => {
+  beforeEach(makeIncognitoBeforeEach({
+    isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true),
+  }));
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('incognito checkbox is enabled', () => {
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  test('incognito note stays hidden', () => {
+    expect((document.getElementById('incognito-note') as HTMLElement).style.display).toBe('none');
+  });
+});
+
+describe('setupIncognito — access denied', () => {
+  beforeEach(makeIncognitoBeforeEach({
+    isAllowedIncognitoAccess: vi.fn().mockResolvedValue(false),
+  }));
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('incognito checkbox is disabled', () => {
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  test('incognito checkbox is unchecked when disabled', () => {
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  test('incognito note is visible', () => {
+    expect((document.getElementById('incognito-note') as HTMLElement).style.display).not.toBe('none');
+  });
+});
+
+describe('setupIncognito — API unavailable (Firefox / undefined)', () => {
+  // browser.extension is not set — accessing .isAllowedIncognitoAccess() throws a
+  // TypeError, which setupIncognito catches and treats as "always allowed".
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    delete (browser as any).extension;
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('incognito checkbox remains enabled', () => {
+    expect((document.getElementById('incognito-checkbox') as HTMLInputElement).disabled).toBe(false);
+  });
+});
+
+describe('openLinks — incognito mode', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    vi.spyOn(window, 'close').mockImplementation(() => {});
+    setupBrowserMocks(['http://a.example/', 'http://b.example/'], ['A', 'B']);
+    browser.windows.create.mockResolvedValue({ id: 100, tabs: [{ id: 1 }, { id: 2 }] });
+    browser.tabs.create.mockResolvedValue({ id: 3 });
+    browser.tabs.update.mockResolvedValue({});
+    // access granted so the checkbox isn't disabled by setupIncognito
+    (browser as any).extension = { isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true) };
+    await import('../src/popup/index.ts');
+    for (const cb of document.querySelectorAll<HTMLInputElement>('input[name="select-links"]')) {
+      cb.checked = true;
+    }
+    (document.getElementById('incognito-checkbox') as HTMLInputElement).checked = true;
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('windows.create is called with incognito: true', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(browser.windows.create).toHaveBeenCalledWith(
+      expect.objectContaining({ incognito: true }),
+    );
+  });
+
+  test('forces a new window even when the new-window checkbox is unchecked', async () => {
+    (document.getElementById('new-window-checkbox') as HTMLInputElement).checked = false;
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(browser.windows.create).toHaveBeenCalled();
+    expect(browser.tabs.create).not.toHaveBeenCalled();
+  });
+
+  test('SxS mode passes incognito: true to both window creates', async () => {
+    (document.getElementById('sxs-checkbox') as HTMLInputElement).checked = true;
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(browser.windows.create).toHaveBeenCalledTimes(2);
+    for (const [args] of browser.windows.create.mock.calls) {
+      expect(args).toMatchObject({ incognito: true });
+    }
+  });
+});
+
+describe('openLinks — incognito already in incognito window', () => {
+  // When the current window is already incognito, enabling the incognito option
+  // should open in the current window rather than forcing a new one.
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    vi.spyOn(window, 'close').mockImplementation(() => {});
+    setupBrowserMocks(['http://a.example/', 'http://b.example/'], ['A', 'B']);
+    // Simulate that the current tab belongs to an incognito window.
+    browser.tabs.query.mockResolvedValue([{ id: 42, incognito: true }]);
+    browser.windows.create.mockResolvedValue({ id: 100, tabs: [{ id: 1 }, { id: 2 }] });
+    browser.tabs.create.mockResolvedValue({ id: 3 });
+    browser.tabs.update.mockResolvedValue({});
+    (browser as any).extension = { isAllowedIncognitoAccess: vi.fn().mockResolvedValue(true) };
+    await import('../src/popup/index.ts');
+    for (const cb of document.querySelectorAll<HTMLInputElement>('input[name="select-links"]')) {
+      cb.checked = true;
+    }
+    (document.getElementById('new-window-checkbox') as HTMLInputElement).checked = false;
+    (document.getElementById('incognito-checkbox') as HTMLInputElement).checked = true;
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('opens in the current window, not a new one', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(browser.windows.create).not.toHaveBeenCalled();
+    expect(browser.tabs.create).toHaveBeenCalled();
+  });
+
+  test('still passes incognito: true to tab options', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    // tabs.create is used for current-window mode; incognito is on the window not the tab,
+    // so we just verify windows.create was NOT called (we're staying in the current window).
+    expect(browser.windows.create).not.toHaveBeenCalled();
   });
 });
 

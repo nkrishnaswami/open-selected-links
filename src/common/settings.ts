@@ -5,6 +5,7 @@ export enum SettingID {
   AutoDiscard = 'auto_discard',
   Deduplicate = 'deduplicate',
   Focus = 'focus',
+  Incognito = 'incognito',
   PopupHideDuplicates = 'popup_hide_duplicates',
   PopupMatchUrls = 'popup_match_urls',
 }
@@ -27,13 +28,14 @@ export interface Settings {
   auto_discard: boolean,
   deduplicate: boolean,
   focus: boolean,
+  incognito: boolean,
   popup_hide_duplicates: boolean,
   popup_match_urls: boolean,
 }
 
 export function setBoolean(settings: Settings, id: keyof Settings, value: boolean) {
   if (id == SettingID.UseNewWindow || id == SettingID.AutoDiscard ||
-    id == SettingID.Deduplicate || id == SettingID.Focus ||
+    id == SettingID.Deduplicate || id == SettingID.Focus || id == SettingID.Incognito ||
     id == SettingID.PopupHideDuplicates || id == SettingID.PopupMatchUrls) {
     settings[id] = value
   }
@@ -75,6 +77,12 @@ export const settingSpecs: SettingSpec[] = [
     description: 'Give focus to opened tab/window',
     input_type: InputType.Checkbox,
     default_: true,
+  },
+  {
+    name: SettingID.Incognito,
+    description: 'Open links in incognito/private window',
+    input_type: InputType.Checkbox,
+    default_: false,
   },
   {
     name: SettingID.PopupHideDuplicates,

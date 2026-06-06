@@ -67,9 +67,12 @@ const processOSLRequest = async (osl_request_id: OSLRequestID, tab: browser.Tabs
     discard: settings.auto_discard,
     deduplicate: settings.deduplicate,
     focus: settings.focus,
+    incognito: settings.incognito,
   };
   if (osl_request_id === OSLRequestID.CurrentWindow) {
-    options.windowId = browser.windows.WINDOW_ID_CURRENT;
+    options.windowId = (settings.incognito && !tab.incognito)
+      ? browser.windows.WINDOW_ID_NONE
+      : browser.windows.WINDOW_ID_CURRENT;
   } else if (osl_request_id === OSLRequestID.NewWindow) {
     options.windowId = browser.windows.WINDOW_ID_NONE;
   } else if (osl_request_id === OSLRequestID.NewTabGroup) {
