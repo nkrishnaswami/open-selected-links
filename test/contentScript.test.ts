@@ -267,6 +267,118 @@ test('processFragment: empty label falls back to [empty]', () => {
   expect(extractor.labels).toEqual(['[empty]']);
 });
 
+test('processSelection: traverses open shadow root for links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<p>text</p><div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/shadow']);
+  expect(extractor.labels).toEqual(['Shadow link']);
+});
+
+test('processSelection: traverses nested open shadow roots for links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<div id="inner-host"></div>';
+  const innerHost = shadow.getElementById('inner-host')!;
+  const innerShadow = innerHost.attachShadow({ mode: 'open' });
+  innerShadow.innerHTML = '<a href="http://localhost/nested">Nested link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/nested']);
+  expect(extractor.labels).toEqual(['Nested link']);
+});
+
+test('processSelection: mix of light DOM and shadow DOM links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = `
+    <a href="http://localhost/before">Before</a>
+    <div id="host"></div>
+    <a href="http://localhost/after">After</a>
+  `;
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/before',
+    'http://localhost/after',
+    'http://localhost/shadow',
+  ]);
+  expect(extractor.labels).toEqual([
+    'Before',
+    'After',
+    'Shadow link',
+  ]);
+});
+
+test('processSelection: multiple shadow hosts alongside light DOM links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = `
+    <a href="http://localhost/a">A</a>
+    <div id="host1"></div>
+    <a href="http://localhost/b">B</a>
+    <div id="host2"></div>
+  `;
+  const host1 = document.getElementById('host1')!;
+  host1.attachShadow({ mode: 'open' }).innerHTML =
+    '<a href="http://localhost/shadow1">Shadow 1</a>';
+  const host2 = document.getElementById('host2')!;
+  host2.attachShadow({ mode: 'open' }).innerHTML =
+    '<a href="http://localhost/shadow2">Shadow 2</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/a',
+    'http://localhost/b',
+    'http://localhost/shadow1',
+    'http://localhost/shadow2',
+  ]);
+  expect(extractor.labels).toEqual([
+    'A',
+    'B',
+    'Shadow 1',
+    'Shadow 2',
+  ]);
+});
+
+test('processSelection: closed shadow root is left untouched', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'closed' });
+  shadow.innerHTML = '<a href="http://localhost/closed">Closed link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
 test('Anchor ancestor is found', () => {
   document.body.innerHTML = `<a href="http://localhost/a">
 a<div id="child">b</div>
