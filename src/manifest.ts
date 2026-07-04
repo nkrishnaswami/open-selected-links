@@ -2,7 +2,6 @@ import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
 import fs from 'fs';
 
-//@ts-ignore
 const isDev = process.env.NODE_ENV == 'development'
 
 export function generateFirefoxManifest() {
@@ -60,8 +59,11 @@ export default defineManifest({
     osl_in_tab_group: {
       description: 'Open selected links in a new tab group in the current window',
     },
+    osl_copy: {
+      description: 'Copy selected links to the clipboard',
+    },
   },
-  permissions: ['activeTab', 'contextMenus', 'system.display', 'scripting', 'storage', 'tabGroups'],
+  permissions: ['activeTab', 'clipboardWrite', 'contextMenus', 'system.display', 'scripting', 'storage', 'tabGroups'],
   icons: {
     16: 'img/icon16.png',
     32: 'img/icon32.png',

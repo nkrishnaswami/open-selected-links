@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { SelectionLinkExtractor } from '../src/contentScript/extractor';
 
 
@@ -154,6 +154,350 @@ test('Cross container', () => {
     'http://localhost/b',
     'http://localhost/d',
   ]);
+});
+
+test('processSelection: getSelection returning null exits early', () => {
+  document.body.innerHTML = doc1;
+  const extractor = new SelectionLinkExtractor();
+  vi.spyOn(window, 'getSelection').mockReturnValueOnce(null);
+  extractor.processSelection();
+  expect(extractor.valid).toBeFalsy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: non-http protocol is skipped', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  a.href = 'ftp://example.com/file';
+  a.textContent = 'FTP link';
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: invalid URL is caught and skipped', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  Object.defineProperty(a, 'href', { get: () => 'http://[invalid' });
+  a.setAttribute('href', 'x');  // needed to match a[href] selector
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: uses <base> href when present in document head', () => {
+  // happy-dom resolves anchor.href against window.location before processFragment
+  // sees it, so we call processFragment directly with a synthetic relative href.
+  document.head.innerHTML = '<base href="https://base.example.com/">';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  Object.defineProperty(a, 'href', { get: () => 'page.html' });
+  a.setAttribute('href', 'page.html');
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  document.head.innerHTML = '';
+  expect(extractor.links).toEqual(['https://base.example.com/page.html']);
+});
+
+test('processSelection: debug mode logs without affecting output', () => {
+  document.body.innerHTML = doc1;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  extractor.debug = true;
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links.length).toBeGreaterThan(0);
+});
+
+test('processAnchorAncestor: text node anchorNode uses parentElement', () => {
+  document.body.innerHTML = `<a href="http://localhost/a">link text</a>`;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const a = document.querySelector('a');
+  const textNode = a.firstChild;  // Text node, not Element
+  const selection = document.getSelection();
+  selection.setBaseAndExtent(textNode, 0, textNode, 4);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/a']);
+});
+
+test('processAnchorAncestor: no anchor ancestor adds no links', () => {
+  document.body.innerHTML = `<p id="p">plain text with no links</p>`;
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const p = document.getElementById('p');
+  const selection = document.getSelection();
+  selection.selectAllChildren(p);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processAnchorAncestor: invalid URL in ancestor anchor is caught', () => {
+  document.body.innerHTML = `<a id="a">text</a>`;
+  window.location.href = 'http://localhost/';
+  const anchor = document.getElementById('a') as HTMLAnchorElement;
+  Object.defineProperty(anchor, 'href', { get: () => 'http://[invalid', configurable: true });
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(anchor);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processFragment: empty label falls back to [empty]', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  a.href = 'http://x/';
+  a.innerHTML = '<img src="something.jpg">';
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toEqual(['http://x/']);
+  expect(extractor.labels).toEqual(['[empty]']);
+});
+
+test('processSelection: traverses open shadow root for links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<p>text</p><div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/shadow']);
+  expect(extractor.labels).toEqual(['Shadow link']);
+});
+
+test('processSelection: traverses nested open shadow roots for links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<div id="inner-host"></div>';
+  const innerHost = shadow.getElementById('inner-host')!;
+  const innerShadow = innerHost.attachShadow({ mode: 'open' });
+  innerShadow.innerHTML = '<a href="http://localhost/nested">Nested link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/nested']);
+  expect(extractor.labels).toEqual(['Nested link']);
+});
+
+test('processSelection: mix of light DOM and shadow DOM links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = `
+    <a href="http://localhost/before">Before</a>
+    <div id="host"></div>
+    <a href="http://localhost/after">After</a>
+  `;
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/before',
+    'http://localhost/after',
+    'http://localhost/shadow',
+  ]);
+  expect(extractor.labels).toEqual([
+    'Before',
+    'After',
+    'Shadow link',
+  ]);
+});
+
+test('processSelection: multiple shadow hosts alongside light DOM links', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = `
+    <a href="http://localhost/a">A</a>
+    <div id="host1"></div>
+    <a href="http://localhost/b">B</a>
+    <div id="host2"></div>
+  `;
+  const host1 = document.getElementById('host1')!;
+  host1.attachShadow({ mode: 'open' }).innerHTML =
+    '<a href="http://localhost/shadow1">Shadow 1</a>';
+  const host2 = document.getElementById('host2')!;
+  host2.attachShadow({ mode: 'open' }).innerHTML =
+    '<a href="http://localhost/shadow2">Shadow 2</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/a',
+    'http://localhost/b',
+    'http://localhost/shadow1',
+    'http://localhost/shadow2',
+  ]);
+  expect(extractor.labels).toEqual([
+    'A',
+    'B',
+    'Shadow 1',
+    'Shadow 2',
+  ]);
+});
+
+test('processSelection: closed shadow root is left untouched', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'closed' });
+  shadow.innerHTML = '<a href="http://localhost/closed">Closed link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection();
+  selection.selectAllChildren(document.body);
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
+test('processSelection: recovers a selection collapsed entirely inside an open shadow root', () => {
+  // Real browsers retarget a selection that lies wholly inside an open shadow
+  // root to a zero-width point next to the host (see issue #32); simulate that
+  // by collapsing the selection, then simulate Selection.getComposedRanges()
+  // (unsupported by happy-dom) resolving the true, non-collapsed boundary.
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: shadow,
+    startOffset: 0,
+    endContainer: shadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/shadow']);
+  expect(extractor.labels).toEqual(['Shadow link']);
+});
+
+test('processSelection: recovers a selection collapsed inside a deeply nested shadow root', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<div id="inner-host"></div>';
+  const innerHost = shadow.getElementById('inner-host')!;
+  const innerShadow = innerHost.attachShadow({ mode: 'open' });
+  innerShadow.innerHTML = '<a href="http://localhost/nested">Nested link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: innerShadow,
+    startOffset: 0,
+    endContainer: innerShadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/nested']);
+  expect(extractor.labels).toEqual(['Nested link']);
+});
+
+test('processSelection: recovers a selection spanning sibling shadow hosts under a shared shadow root', () => {
+  // Mirrors a card/tile layout (e.g. a list of results) where each tile is its
+  // own custom element with its own shadow root, all hosted inside a shared
+  // "container" component's shadow root. The middle tile is only reachable by
+  // scanning inside the shared root, not by name, exercising processShadowHosts
+  // being handed a ShadowRoot (rather than an Element) as commonAncestorContainer.
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="browser"></div>';
+  const browserHost = document.getElementById('browser')!;
+  const browserShadow = browserHost.attachShadow({ mode: 'open' });
+  browserShadow.innerHTML = '<div id="tile1"></div><div id="tile2"></div><div id="tile3"></div>';
+
+  const tileShadows = ['tile1', 'tile2', 'tile3'].map((id, i) => {
+    const tile = browserShadow.getElementById(id)!;
+    const tileShadow = tile.attachShadow({ mode: 'open' });
+    tileShadow.innerHTML = `<a href="http://localhost/${id}">Tile ${i + 1}</a>`;
+    return tileShadow;
+  });
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: tileShadows[0],
+    startOffset: 0,
+    endContainer: tileShadows[2],
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/tile1',
+    'http://localhost/tile2',
+    'http://localhost/tile3',
+  ]);
+  expect(extractor.labels).toEqual(['Tile 1', 'Tile 2', 'Tile 3']);
+});
+
+test('processSelection: getComposedRanges spanning disconnected shadow trees is skipped, not thrown', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const detachedHost = document.createElement('div');
+  const detachedShadow = detachedHost.attachShadow({ mode: 'open' });
+  detachedShadow.innerHTML = '<a href="http://localhost/detached">Detached link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  (selection as any).getComposedRanges = () => [{
+    startContainer: shadow,
+    startOffset: 0,
+    endContainer: detachedShadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
 });
 
 test('Anchor ancestor is found', () => {

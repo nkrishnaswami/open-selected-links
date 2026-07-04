@@ -1,7 +1,7 @@
 {
   "name": "Open Selected Links Beta",
   "displayName": "Open Selected Links Beta",
-  "version": "1.8.4",
+  "version": "1.8.6",
   "author": "Natarajan Krishnaswami <natarajan+osl@krishnaswami.org>",
   "description": "Opens multiple links in the selected content in the current or new window or a tab group.  BETA TESTING RELEASE",
   "type": "module",
@@ -24,23 +24,28 @@
     "zip": "bun run build && bun run ./src/zip.js",
     "zip-ff": "BUILD_TARGET=firefox bun run zip",
     "test": "bunx vitest run",
-    "test:e2e": "bun run build && bunx playwright test",
+    "test:e2e": "bun run build && bunx playwright test --project=chromium",
     "test:e2e-ff": "bun run build-ff && bunx playwright test --project=firefox",
-    "coverage": "bunx vitest run --coverage"
+    "coverage": "bunx vitest run --coverage",
+    "lint": "eslint src test *.ts"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.3.0",
+    "@eslint/js": "^9",
     "@happy-dom/global-registrator": "^14.12.3",
     "@playwright/test": "^1.59.1",
     "@types/jsdom": "^21.1.7",
     "@types/webextension-polyfill": "^0.12.4",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-istanbul": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.0",
+    "eslint": "^9",
     "gulp": "^4.0.2",
     "gulp-zip": "^6.1.0",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "vite": "^4.5.14",
-    "vitest": "^2.1.9"
+    "typescript-eslint": "^8.59.2",
+    "vite": "^6.4.2",
+    "vitest": "^4.1.0"
   },
   "openSelectedLinks": {
     "extension_id": "fklbicgdocbmcjmmbmnbbefhjneiecan",

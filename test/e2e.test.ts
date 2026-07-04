@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Extension ID is stable because manifest.json includes a fixed public key.
-const CHROME_EXTENSION_ID = 'fklbicgdocbmcjmmbmnbbefhjneiecan';
+const CHROME_EXTENSION_ID = 'hcihcignkpajeehfnomlncinacagapdf';
 const EXTENSION_PATH = path.resolve(__dirname, '../build');
 
 let context: BrowserContext;

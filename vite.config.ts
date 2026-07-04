@@ -6,7 +6,7 @@ import manifest from './src/manifest'
 import { generateFirefoxManifest } from './src/manifest'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode: _mode }) => {
   return {
     build: {
       emptyOutDir: true,
@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => {
     }],
     test: {
       include: ['test/**/*.test.ts'],
-      exclude: ['test/e2e.test.ts'],
+      exclude: ['test/e2e.test.ts', 'test/e2e-firefox.test.ts'],
       setupFiles: ['./happydom.init.ts', './chrome.init.ts'],
     },
   }

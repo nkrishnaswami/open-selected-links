@@ -12,7 +12,7 @@ export function invalidateExtractor() {
   extractor.invalidate()
 }
 
-export function handleMessage(msg: Message, sender: browser.Runtime.MessageSender, sendResponse: Function) {
+export function handleMessage(msg: Message, sender: browser.Runtime.MessageSender, sendResponse: (response?: unknown) => void) {
   console.log('Got message:', msg);
   if (sender.id != browser.runtime.id) {
     console.log('Unexpected message', msg, 'from sender', sender);

@@ -1,3 +1,23 @@
+# Version 1.8.6
+* Show `[empty]` for links with no text, not just missing text (#33)
+* Traverse open shadow roots when extracting links (#34)
+  * Fixes links not being found on sites that render content in web
+    components, e.g. Internet Archive
+* Fix links not found when a selection lies entirely inside an open shadow
+  root (#35)
+  * Browsers collapse such a selection's `Range` to a zero-width point;
+    recover the real boundary points via `Selection.getComposedRanges()`
+    where supported (Chrome 127+, Firefox 142+)
+  * Fixes #30
+# Version 1.8.5
+* Add copy links to clipboard (#28)
+  * Copy button in popup writes checked URLs (newline-separated) to clipboard
+  * Context menu item and keyboard shortcut (`osl_copy`) for copy without opening the popup
+* Add incognito/private window option (#29)
+  * "Incognito/private" checkbox in popup; greyed out with a note if Chrome hasn't granted incognito access
+  * When opened from an incognito window, the checkbox is pre-checked so new windows inherit privacy by default; user can uncheck to escape to a regular window
+  * Context menu and keyboard commands respect the saved incognito setting
+  * If already in an incognito window, "open in current window" stays there rather than creating a new one
 # Version 1.8.4
 * Fix open in new window from menu or command
 # Version 1.8.3
