@@ -1,3 +1,14 @@
+# Version 1.8.6
+* Show `[empty]` for links with no text, not just missing text (#33)
+* Traverse open shadow roots when extracting links (#34)
+  * Fixes links not being found on sites that render content in web
+    components, e.g. Internet Archive
+* Fix links not found when a selection lies entirely inside an open shadow
+  root (#35)
+  * Browsers collapse such a selection's `Range` to a zero-width point;
+    recover the real boundary points via `Selection.getComposedRanges()`
+    where supported (Chrome 127+, Firefox 142+)
+  * Fixes #30
 # Version 1.8.5
 * Add copy links to clipboard (#28)
   * Copy button in popup writes checked URLs (newline-separated) to clipboard
