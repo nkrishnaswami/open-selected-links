@@ -26,7 +26,7 @@ export class SelectionLinkExtractor {
 	if (url.protocol.startsWith('http')) {
 	  this.links.push(url.href);
 	  if (this.debug) { console.log('anchor:', anchor) };
-	  this.labels.push(anchor.textContent?.trim() ?? '[empty]');
+	  this.labels.push(anchor.textContent?.trim() || '[empty]');
 	  this.anchors.push(anchor);
 	}
       } catch {

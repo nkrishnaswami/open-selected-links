@@ -254,6 +254,19 @@ test('processAnchorAncestor: invalid URL in ancestor anchor is caught', () => {
   expect(extractor.links).toHaveLength(0);
 });
 
+test('processFragment: empty label falls back to [empty]', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  a.href = 'http://x/';
+  a.innerHTML = '<img src="something.jpg">';
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.links).toEqual(['http://x/']);
+  expect(extractor.labels).toEqual(['[empty]']);
+});
+
 test('Anchor ancestor is found', () => {
   document.body.innerHTML = `<a href="http://localhost/a">
 a<div id="child">b</div>
