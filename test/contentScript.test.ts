@@ -379,6 +379,127 @@ test('processSelection: closed shadow root is left untouched', () => {
   expect(extractor.links).toHaveLength(0);
 });
 
+test('processSelection: recovers a selection collapsed entirely inside an open shadow root', () => {
+  // Real browsers retarget a selection that lies wholly inside an open shadow
+  // root to a zero-width point next to the host (see issue #32); simulate that
+  // by collapsing the selection, then simulate Selection.getComposedRanges()
+  // (unsupported by happy-dom) resolving the true, non-collapsed boundary.
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: shadow,
+    startOffset: 0,
+    endContainer: shadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/shadow']);
+  expect(extractor.labels).toEqual(['Shadow link']);
+});
+
+test('processSelection: recovers a selection collapsed inside a deeply nested shadow root', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<div id="inner-host"></div>';
+  const innerHost = shadow.getElementById('inner-host')!;
+  const innerShadow = innerHost.attachShadow({ mode: 'open' });
+  innerShadow.innerHTML = '<a href="http://localhost/nested">Nested link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: innerShadow,
+    startOffset: 0,
+    endContainer: innerShadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual(['http://localhost/nested']);
+  expect(extractor.labels).toEqual(['Nested link']);
+});
+
+test('processSelection: recovers a selection spanning sibling shadow hosts under a shared shadow root', () => {
+  // Mirrors a card/tile layout (e.g. a list of results) where each tile is its
+  // own custom element with its own shadow root, all hosted inside a shared
+  // "container" component's shadow root. The middle tile is only reachable by
+  // scanning inside the shared root, not by name, exercising processShadowHosts
+  // being handed a ShadowRoot (rather than an Element) as commonAncestorContainer.
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="browser"></div>';
+  const browserHost = document.getElementById('browser')!;
+  const browserShadow = browserHost.attachShadow({ mode: 'open' });
+  browserShadow.innerHTML = '<div id="tile1"></div><div id="tile2"></div><div id="tile3"></div>';
+
+  const tileShadows = ['tile1', 'tile2', 'tile3'].map((id, i) => {
+    const tile = browserShadow.getElementById(id)!;
+    const tileShadow = tile.attachShadow({ mode: 'open' });
+    tileShadow.innerHTML = `<a href="http://localhost/${id}">Tile ${i + 1}</a>`;
+    return tileShadow;
+  });
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  expect(selection.getRangeAt(0).collapsed).toBeTruthy();
+  (selection as any).getComposedRanges = () => [{
+    startContainer: tileShadows[0],
+    startOffset: 0,
+    endContainer: tileShadows[2],
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toEqual([
+    'http://localhost/tile1',
+    'http://localhost/tile2',
+    'http://localhost/tile3',
+  ]);
+  expect(extractor.labels).toEqual(['Tile 1', 'Tile 2', 'Tile 3']);
+});
+
+test('processSelection: getComposedRanges spanning disconnected shadow trees is skipped, not thrown', () => {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="host"></div>';
+  const host = document.getElementById('host')!;
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<a href="http://localhost/shadow">Shadow link</a>';
+
+  const detachedHost = document.createElement('div');
+  const detachedShadow = detachedHost.attachShadow({ mode: 'open' });
+  detachedShadow.innerHTML = '<a href="http://localhost/detached">Detached link</a>';
+
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  (selection as any).getComposedRanges = () => [{
+    startContainer: shadow,
+    startOffset: 0,
+    endContainer: detachedShadow,
+    endOffset: 1,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.valid).toBeTruthy();
+  expect(extractor.links).toHaveLength(0);
+});
+
 test('Anchor ancestor is found', () => {
   document.body.innerHTML = `<a href="http://localhost/a">
 a<div id="child">b</div>
