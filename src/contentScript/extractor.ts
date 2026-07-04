@@ -20,7 +20,7 @@ export class SelectionLinkExtractor {
   processFragment(documentFragment: DocumentFragment) {
     const base = document.head.querySelector('base');
     const baseURL = base ? base.href : window.location.href;
-    for (const anchor of documentFragment.querySelectorAll('a[href]') as NodeListOf<HTMLAnchorElement>) {
+    for (const anchor of this.collectAnchors(documentFragment)) {
       try {
 	const url = new URL(anchor.href, baseURL);
 	if (url.protocol.startsWith('http')) {
@@ -34,6 +34,33 @@ export class SelectionLinkExtractor {
       }
     }
     if (this.debug) { console.log('Done processing fragment') }
+  }
+
+  // Cloning a selection (Range.cloneContents) never carries open shadow
+  // roots along with their hosts, so this recursion only bears fruit when
+  // called on a *live* shadow root (see processShadowHosts below).
+  private collectAnchors(root: DocumentFragment | ShadowRoot): HTMLAnchorElement[] {
+    const anchors = Array.from(root.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+    for (const element of root.querySelectorAll('*')) {
+      if (element.shadowRoot) {
+	anchors.push(...this.collectAnchors(element.shadowRoot));
+      }
+    }
+    return anchors;
+  }
+
+  // Shadow trees aren't part of the light DOM that Range.cloneContents()
+  // clones, so find shadow hosts intersecting the live selection directly
+  // and process their (live) shadow roots for links.
+  processShadowHosts(range: Range) {
+    const ancestor = range.commonAncestorContainer;
+    const container = ancestor instanceof Element ? ancestor : ancestor.parentElement;
+    if (!container) return;
+    for (const element of container.querySelectorAll('*')) {
+      if (element.shadowRoot && range.intersectsNode(element)) {
+	this.processFragment(element.shadowRoot);
+      }
+    }
   }
 
   processAnchorAncestor(selection: Selection) {
@@ -72,7 +99,9 @@ export class SelectionLinkExtractor {
     }
     for (let rangeIdx = 0; rangeIdx < selection.rangeCount; ++rangeIdx) {
       if (this.debug) { console.log('processing range', rangeIdx + 1) }
-      this.processFragment(selection.getRangeAt(rangeIdx).cloneContents());
+      const range = selection.getRangeAt(rangeIdx);
+      this.processFragment(range.cloneContents());
+      this.processShadowHosts(range);
     }
     // Special case if the selection is completely contained inside an anchor.
     if (this.links.length == 0 && selection.rangeCount > 0) {
