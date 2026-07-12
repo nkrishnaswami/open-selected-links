@@ -629,3 +629,90 @@ describe('addLinkCheckboxes with duplicate URLs', () => {
     expect(rows[2].classList.contains('invisible')).toBe(false); // B: unique, shown
   });
 });
+
+describe('keyboard navigation', () => {
+  const pressKey = (key: string, target: Element = document.body) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(
+      ['http://a.example/', 'http://b.example/', 'http://c.example/'],
+      ['A', 'B', 'C'],
+    );
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('ArrowDown moves focus onto the first row, then the next', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[0]);
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[1]);
+  });
+
+  test('ArrowUp moves focus to the previous row', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowDown');
+    pressKey('ArrowDown');
+    pressKey('ArrowUp');
+    expect(document.activeElement).toBe(rows[0]);
+  });
+
+  test('ArrowUp/ArrowDown clamp at the first/last row', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowUp'); // already before the first row; clamps to the first
+    expect(document.activeElement).toBe(rows[0]);
+    pressKey('ArrowDown');
+    pressKey('ArrowDown');
+    pressKey('ArrowDown'); // past the last row; clamps to the last
+    expect(document.activeElement).toBe(rows[2]);
+  });
+
+  test('Space toggles the focused row\'s checkbox', () => {
+    const checkbox = document.querySelector('input[name="select-links"]') as HTMLInputElement;
+    pressKey('ArrowDown');
+    pressKey(' ');
+    expect(checkbox.checked).toBe(true);
+    pressKey(' ');
+    expect(checkbox.checked).toBe(false);
+  });
+
+  test('Space does nothing when no row is focused (e.g. the filter has focus)', () => {
+    const filter = document.getElementById('filter')!;
+    filter.focus();
+    const event = pressKey(' ', filter);
+    for (const cb of document.querySelectorAll<HTMLInputElement>('input[name="select-links"]')) {
+      expect(cb.checked).toBe(false);
+    }
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  test('ArrowDown skips rows hidden by the filter', () => {
+    const filterDiv = document.getElementById('filter')!;
+    (filterDiv as any).innerText = 'B';
+    filterDiv.dispatchEvent(new Event('input'));
+
+    const rows = document.querySelectorAll('div.row');
+    expect(rows[1].classList.contains('invisible')).toBe(false);
+    expect(rows[0].classList.contains('invisible')).toBe(true);
+    expect(rows[2].classList.contains('invisible')).toBe(true);
+
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[1]);
+  });
+});

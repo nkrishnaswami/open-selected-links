@@ -157,3 +157,20 @@ test('a real Chrome error opening links shows a friendly title with the error as
   // The popup stays open on error instead of calling window.close().
   expect(popup.isClosed()).toBe(false);
 });
+
+test('keyboard navigation: ArrowDown/Space select a link without a mouse', async () => {
+  const page = await context.newPage();
+  await page.goto(server.url);
+  await selectTestPageContent(page);
+  const tabId = await getTestPageTabId();
+  const popup = await openPopupForTab(tabId);
+
+  await popup.keyboard.press('ArrowDown'); // focuses the first row
+  await popup.keyboard.press('ArrowDown'); // focuses the second row
+  await popup.keyboard.press(' '); // toggles the second row's checkbox
+
+  const rows = popup.locator('div.row');
+  await expect(rows.nth(1)).toBeFocused();
+  await expect(rows.nth(1).locator('input[type="checkbox"]')).toBeChecked();
+  await expect(rows.nth(0).locator('input[type="checkbox"]')).not.toBeChecked();
+});
