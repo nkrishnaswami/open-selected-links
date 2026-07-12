@@ -245,7 +245,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
     );
 
     // Highlight subspans till the end of the match
-    while (node && curIndex <= endIndex) {
+    while (node && curIndex < endIndex) {
       const text = node.nodeValue!;
       console.log(
         `Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`,
@@ -276,7 +276,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
       curIndex += text.length;
       nodeMatchStart = 0;
       node = nextNode! as Element;
-      console.log('Next node is', node.nodeValue);
+      console.log('Next node is', node?.nodeValue);
     }
   }
 }
