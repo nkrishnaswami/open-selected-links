@@ -7,6 +7,13 @@
   * Also fixes a related off-by-one that could wrap a spurious empty
     highlight span around the start of the next text node when a match
     landed exactly on a node boundary
+* Fix a console error on every keystroke in the popup
+  * The "type anywhere to jump into the filter" handler redispatched the
+    same (already-dispatching) keypress event onto the filter, which is a
+    DOM-spec violation and always threw `InvalidStateError`
+  * Moving focus to the filter while the native keypress is still bubbling
+    was already enough for the browser to deliver the character there;
+    the redispatch was unnecessary as well as broken
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)

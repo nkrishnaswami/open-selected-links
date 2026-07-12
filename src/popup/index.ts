@@ -348,9 +348,14 @@ const setupFilter = function() {
       event.preventDefault();
     }
   });
-  document.body.addEventListener('keypress', (event) => {
+  document.body.addEventListener('keypress', () => {
+    // Moving focus synchronously, while the native keypress is still
+    // bubbling, is enough for the browser to insert the character being
+    // typed into the (newly focused) filter itself — no redispatch needed.
+    // (Redispatching the same event further throws: it's a DOM-spec
+    // violation to dispatch an event that's already mid-dispatch,
+    // regardless of which element originated it.)
     filterInput.focus();
-    filterInput.dispatchEvent(event);
   });
 }
 
