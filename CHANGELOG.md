@@ -14,6 +14,12 @@
   * Moving focus to the filter while the native keypress is still bubbling
     was already enough for the browser to deliver the character there;
     the redispatch was unnecessary as well as broken
+* Show a friendly message when opening links fails
+  * The popup's Open button showed the raw `Error` object's default string
+    (e.g. `Error: No group with id: 12345.`) instead of the curated
+    title/subtitle messaging used everywhere else in the popup
+  * Now shows "Unable to open links" as the title with the underlying
+    error as the subtitle
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)

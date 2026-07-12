@@ -215,6 +215,48 @@ describe('openLinks (Open button)', () => {
   });
 });
 
+describe('openLinks — error handling', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    vi.spyOn(window, 'close').mockImplementation(() => {});
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    browser.tabs.create.mockResolvedValue({ id: 3 });
+    browser.tabs.update.mockResolvedValue({});
+    // groupTabs doesn't catch failures from browser.tabs.group — a
+    // nonexistent numeric tab-group id rejects with a real Chrome error.
+    browser.tabs.group.mockRejectedValue(new Error('No group with id: 12345.'));
+    await import('../src/popup/index.ts');
+    (document.querySelector('input[name="select-links"]') as HTMLInputElement).checked = true;
+    (document.getElementById('new-window-checkbox') as HTMLInputElement).checked = false;
+    (document.getElementById('tab-group-name') as HTMLInputElement).value = '12345';
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('shows a friendly title with the underlying error as the subtitle', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(document.getElementById('error')!.innerText).toBe('Unable to open links');
+    expect(document.getElementById('error_sub')!.innerText).toBe('No group with id: 12345.');
+  });
+
+  test('does not close the popup', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(window.close).not.toHaveBeenCalled();
+  });
+});
+
 describe('filterRows', () => {
   const triggerFilter = (text: string) => {
     const div = document.getElementById('filter')!;

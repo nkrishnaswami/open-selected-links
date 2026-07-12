@@ -136,3 +136,24 @@ test('typing directly into the already-focused filter does not throw', async () 
   expect(pageErrors).toEqual([]);
   expect(await popup.locator('#filter').textContent()).toBe('Article');
 });
+
+test('a real Chrome error opening links shows a friendly title with the error as subtitle', async () => {
+  const page = await context.newPage();
+  await page.goto(server.url);
+  await selectTestPageContent(page);
+  const tabId = await getTestPageTabId();
+  const popup = await openPopupForTab(tabId);
+
+  await popup.locator('input[name="select-links"]').first().check();
+  // A numeric tab-group id that doesn't exist makes the real
+  // browser.tabs.group() call reject (groupTabs doesn't catch it).
+  await popup.fill('#tab-group-name', '999999999');
+  await popup.click('#open-button');
+  await popup.waitForTimeout(500);
+
+  await expect(popup.locator('#error')).toHaveText('Unable to open links');
+  const subtitle = await popup.locator('#error_sub').textContent();
+  expect(subtitle).toBeTruthy();
+  // The popup stays open on error instead of calling window.close().
+  expect(popup.isClosed()).toBe(false);
+});
