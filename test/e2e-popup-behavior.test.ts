@@ -99,3 +99,40 @@ test('filtering does not crash when a match ends at the very end of the link lis
   expect(pageErrors).toEqual([]);
   await expect(popup.locator('#select-links-div span.highlight')).toHaveCount(2);
 });
+
+test('typing while focus is elsewhere redirects into the filter without throwing', async () => {
+  const page = await context.newPage();
+  await page.goto(server.url);
+  await selectTestPageContent(page);
+  const tabId = await getTestPageTabId();
+  const popup = await openPopupForTab(tabId);
+
+  const pageErrors: string[] = [];
+  popup.on('pageerror', (err) => pageErrors.push(String(err)));
+
+  await popup.click('#toggle-button'); // focus something that is NOT the filter
+  await popup.keyboard.press('x');
+  await popup.waitForTimeout(200);
+
+  expect(pageErrors).toEqual([]);
+  await expect(popup.locator('#filter')).toBeFocused();
+  expect(await popup.locator('#filter').textContent()).toBe('x');
+});
+
+test('typing directly into the already-focused filter does not throw', async () => {
+  const page = await context.newPage();
+  await page.goto(server.url);
+  await selectTestPageContent(page);
+  const tabId = await getTestPageTabId();
+  const popup = await openPopupForTab(tabId);
+
+  const pageErrors: string[] = [];
+  popup.on('pageerror', (err) => pageErrors.push(String(err)));
+
+  await popup.click('#filter');
+  await popup.keyboard.type('Article');
+  await popup.waitForTimeout(200);
+
+  expect(pageErrors).toEqual([]);
+  expect(await popup.locator('#filter').textContent()).toBe('Article');
+});

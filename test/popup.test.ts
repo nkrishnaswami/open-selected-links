@@ -295,6 +295,39 @@ describe('filterRows', () => {
   });
 });
 
+describe('body keypress redirect to filter', () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('keystrokes typed elsewhere move focus to the filter without throwing', () => {
+    const filter = document.getElementById('filter')!;
+    const otherElement = document.getElementById('open-button')!;
+    const event = new KeyboardEvent('keypress', { key: 'a', bubbles: true, cancelable: true });
+    expect(() => otherElement.dispatchEvent(event)).not.toThrow();
+    expect(document.activeElement).toBe(filter);
+  });
+
+  test('keystrokes typed directly into the filter do not throw', () => {
+    const filter = document.getElementById('filter')!;
+    const event = new KeyboardEvent('keypress', { key: 'a', bubbles: true, cancelable: true });
+    expect(() => filter.dispatchEvent(event)).not.toThrow();
+  });
+});
+
 // Shared beforeEach body for setupIncognito describe blocks — only the
 // isAllowedIncognitoAccess mock differs between them.
 const makeIncognitoBeforeEach = (extensionMock: object) => async () => {
