@@ -125,7 +125,7 @@ const openLinks = async (event: Event) => {
     try {
       await makeTabsForLinks([links[0]], options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
     // Open the rest of the links in a a new righthand window
@@ -135,7 +135,7 @@ const openLinks = async (event: Event) => {
     try {
       await makeTabsForLinks(links.slice(1), options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
   } else {
@@ -148,7 +148,7 @@ const openLinks = async (event: Event) => {
       console.log('Making tabs with options:', options)
       await makeTabsForLinks(links, options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
   }
