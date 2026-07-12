@@ -20,6 +20,11 @@
     title/subtitle messaging used everywhere else in the popup
   * Now shows "Unable to open links" as the title with the underlying
     error as the subtitle
+* Add keyboard navigation to the popup's link list
+  * ArrowUp/ArrowDown move focus across the currently visible (unfiltered)
+    rows; Space toggles the focused row's checkbox
+  * Focusing a row via the keyboard highlights the corresponding link on
+    the page, matching the existing mouse-hover behavior
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)
