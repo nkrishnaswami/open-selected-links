@@ -25,6 +25,13 @@
     rows; Space toggles the focused row's checkbox
   * Focusing a row via the keyboard highlights the corresponding link on
     the page, matching the existing mouse-hover behavior
+* Extract links from image-map areas and formaction buttons (#24)
+  * `<area href>` inside `<map>` (image maps) and `<button>`/`<input
+    type="submit"|"image">` with a `formaction` attribute are now picked up
+    alongside `<a href>`, in the light DOM, inside open shadow roots, and in
+    the "selection collapsed inside a single link" special case
+  * `<area>` labels fall back to the element's `alt` attribute, since it has
+    no text content of its own
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)

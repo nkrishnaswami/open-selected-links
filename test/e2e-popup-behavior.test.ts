@@ -174,3 +174,41 @@ test('keyboard navigation: ArrowDown/Space select a link without a mouse', async
   await expect(rows.nth(1).locator('input[type="checkbox"]')).toBeChecked();
   await expect(rows.nth(0).locator('input[type="checkbox"]')).not.toBeChecked();
 });
+
+const AREA_AND_FORMACTION_HTML = `<!DOCTYPE html>
+<html><body>
+<div id="content">
+  <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7"
+       usemap="#planmap" width="10" height="10">
+  <map name="planmap">
+    <area shape="rect" coords="0,0,10,10" href="https://example.com/room-one" alt="Room One">
+  </map>
+  <form>
+    <button formaction="https://example.com/submit-link">Submit Link</button>
+  </form>
+</div>
+</body></html>`;
+
+test('extracts links from image-map areas and formaction buttons', async () => {
+  const areaServer = await startTestServer(AREA_AND_FORMACTION_HTML);
+  try {
+    const page = await context.newPage();
+    await page.goto(areaServer.url);
+    await selectTestPageContent(page);
+    const tabId = await getTestPageTabId();
+    const popup = await openPopupForTab(tabId);
+
+    const links = await popup.locator('#select-links-div a').evaluateAll(
+      (anchors) => anchors.map((a) => (a as HTMLAnchorElement).href),
+    );
+    const labels = await popup.locator('#select-links-div a').allTextContents();
+
+    expect(links).toEqual([
+      'https://example.com/room-one',
+      'https://example.com/submit-link',
+    ]);
+    expect(labels).toEqual(['Room One', 'Submit Link']);
+  } finally {
+    areaServer.close();
+  }
+});
