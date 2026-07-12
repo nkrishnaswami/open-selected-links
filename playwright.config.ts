@@ -9,7 +9,7 @@ const CHROME_EXECUTABLE = path.join(
 
 export default defineConfig({
   testDir: './test',
-  testMatch: ['**/e2e.test.ts'],
+  testMatch: ['**/e2e.test.ts', '**/e2e-popup-behavior.test.ts'],
   timeout: 30000,
   use: {
     headless: false,  // Chrome extensions require non-headless or headed mode

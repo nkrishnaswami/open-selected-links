@@ -1,3 +1,12 @@
+# Next version
+* Fix a crash in the popup's link filter when a regex match ended at the very
+  last character of the link list
+  * `highlightRegex` dereferenced a possibly-null `TreeWalker` node after
+    walking off the end of the text, throwing and aborting highlighting of
+    any earlier matches in the same filter pass
+  * Also fixes a related off-by-one that could wrap a spurious empty
+    highlight span around the start of the next text node when a match
+    landed exactly on a node boundary
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)

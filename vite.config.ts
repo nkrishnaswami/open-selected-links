@@ -40,7 +40,7 @@ export default defineConfig(({ mode: _mode }) => {
     }],
     test: {
       include: ['test/**/*.test.ts'],
-      exclude: ['test/e2e.test.ts', 'test/e2e-firefox.test.ts'],
+      exclude: ['test/e2e.test.ts', 'test/e2e-firefox.test.ts', 'test/e2e-popup-behavior.test.ts'],
       setupFiles: ['./happydom.init.ts', './chrome.init.ts'],
     },
   }
