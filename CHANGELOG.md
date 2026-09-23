@@ -1,4 +1,15 @@
 # Next version
+* Fix links silently not opening on a freshly loaded page (#38)
+  * The injected content script is a lightweight loader that kicks off an
+    async import of the real module and returns immediately, so its message
+    listener could still be registering when the next request went out
+  * `setup()` only waited a fixed 10ms after reinjection before proceeding,
+    and the popup called it a second, redundant time on top of that, doubling
+    the race window; when the module wasn't ready in time the request failed
+    with "Could not establish connection" and the action silently did nothing
+  * `setup()` now polls until the content script actually responds instead of
+    guessing a delay
+  * Fixes #37
 * Fix a crash in the popup's link filter when a regex match ended at the very
   last character of the link list
   * `highlightRegex` dereferenced a possibly-null `TreeWalker` node after
