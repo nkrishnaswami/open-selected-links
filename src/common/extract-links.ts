@@ -42,9 +42,31 @@ export class OSLSession {
         target: { tabId: this.tabId, frameIds: [this.frameId] }
       });
       console.log('script executed')
-      await new Promise((resolve) => { setTimeout(() => { resolve(void 1); }, 10) });
+      await this.waitUntilReady();
       console.log('yielded and returned')
     }
+  }
+
+  // contentScriptPath is a lightweight loader that kicks off a dynamic
+  // import() of the real content script module and returns immediately;
+  // the module (and its message listener) may still be loading by the time
+  // executeScript()'s promise resolves. A single short fixed delay here was
+  // observed to race and leave the very next get_links request unanswered,
+  // so poll with ping instead of guessing a delay.
+  private async waitUntilReady(retries = 20, delayMs = 25) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await browser.tabs.sendMessage(
+          this.tabId,
+          { id: 'ping' },
+          { frameId: this.frameId });
+        if (response === 'ack') return;
+      } catch {
+        // Not ready yet; fall through to retry.
+      }
+      await new Promise((resolve) => { setTimeout(resolve, delayMs) });
+    }
+    console.log('Content script did not become ready in time; proceeding anyway');
   }
 
   async getLinksAndLabels(): Promise<LinksAndLabels> {

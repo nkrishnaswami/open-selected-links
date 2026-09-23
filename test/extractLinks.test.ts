@@ -98,6 +98,69 @@ test('setup: insertCSS throwing is caught and injection continues', async () => 
   expect(browser.scripting.executeScript).toHaveBeenCalled();
 });
 
+// Regression test for a real bug: the injected file is a lightweight loader
+// that kicks off an async import() of the real content script module and
+// returns immediately, so the module's message listener can still be
+// registering by the time executeScript()'s promise resolves. Before this
+// fix, setup() just waited a fixed 10ms after reinjection and then sent
+// get_links regardless -- if the module was still loading, that request (and
+// every message before it, since no listener was registered yet) failed with
+// "Could not establish connection", and the whole action silently failed.
+// This reproduced in practice on a freshly (re)loaded page: browser.tabs.query
+// end-to-end testing against real Chrome showed roughly a 1-in-5 failure rate
+// on a cold content-script injection before this fix.
+test('setup: waits for the content script to actually be ready before sending get_links', async () => {
+  browser.scripting = {
+    executeScript: vi.fn(),
+    insertCSS: vi.fn(),
+  };
+  const session = new OSLSession(1);
+  browser.tabs.sendMessage.mockReset();
+
+  // Nothing responds until the module has "finished loading", which we
+  // simulate as happening after a few ping attempts -- matching how, in real
+  // Chrome, every message (not just ping) fails identically until some
+  // listener is registered in the target tab.
+  let pingAttempts = 0;
+  const READY_AFTER_ATTEMPTS = 3;
+  let ready = false;
+  browser.tabs.sendMessage.mockImplementation(async (t, m, f) => {
+    if (m.id === 'ping') {
+      pingAttempts++;
+      if (pingAttempts > READY_AFTER_ATTEMPTS) {
+        ready = true;
+        return 'ack';
+      }
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    }
+    if (!ready) {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    }
+    return fakeSendMessage(t, m, f);
+  });
+
+  const { links } = await session.getLinksAndLabels();
+  expect(links).toHaveLength(1);
+  expect(browser.scripting.executeScript).toHaveBeenCalledTimes(1);
+  // The initial pre-injection ping, plus retries after injection until ready.
+  expect(pingAttempts).toBe(READY_AFTER_ATTEMPTS + 1);
+});
+
+test('setup: gives up and proceeds anyway if the content script never becomes ready', async () => {
+  browser.scripting = {
+    executeScript: vi.fn(),
+    insertCSS: vi.fn(),
+  };
+  const session = new OSLSession(1);
+  browser.tabs.sendMessage.mockReset();
+  browser.tabs.sendMessage.mockImplementation(async (_t, m) => {
+    throw new Error('Could not establish connection. Receiving end does not exist.');
+  });
+
+  await expect(session.getLinksAndLabels()).rejects.toThrow('Could not establish connection');
+  expect(browser.scripting.executeScript).toHaveBeenCalledTimes(1);
+}, 10000);
+
 const BASE_WINDOW_ID = 1;
 const BASE_TAB_ID = 100;
 
