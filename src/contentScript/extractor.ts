@@ -1,7 +1,15 @@
+// <area href> (image maps) shares HTMLAnchorElement's .href behavior via
+// HTMLHyperlinkElementUtils; formaction-bearing submit buttons/inputs use
+// .formAction instead — see LinkElement.linkURL below.
+type LinkElement = HTMLAnchorElement | HTMLAreaElement | HTMLButtonElement | HTMLInputElement;
+
+const LINK_ELEMENT_SELECTOR =
+  'a[href], area[href], button[formaction], input[type="submit"][formaction], input[type="image"][formaction]';
+
 export class SelectionLinkExtractor {
   labels: string[] = [];
   links: string[] = [];
-  anchors: HTMLAnchorElement[] = [];
+  anchors: LinkElement[] = [];
   valid: boolean = false;
   debug: boolean = false;
 
@@ -17,20 +25,24 @@ export class SelectionLinkExtractor {
     this.anchors = [];
   }
 
+  private static linkURL(el: LinkElement): string {
+    return (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) ? el.formAction : el.href;
+  }
+
   processFragment(documentFragment: DocumentFragment) {
     const base = document.head.querySelector('base');
     const baseURL = base ? base.href : window.location.href;
-    for (const anchor of this.collectAnchors(documentFragment)) {
+    for (const anchor of this.collectLinkElements(documentFragment)) {
       try {
-	const url = new URL(anchor.href, baseURL);
+	const url = new URL(SelectionLinkExtractor.linkURL(anchor), baseURL);
 	if (url.protocol.startsWith('http')) {
 	  this.links.push(url.href);
 	  if (this.debug) { console.log('anchor:', anchor) };
-	  this.labels.push(anchor.textContent?.trim() || '[empty]');
+	  this.labels.push(anchor.textContent?.trim() || anchor.getAttribute('alt')?.trim() || '[empty]');
 	  this.anchors.push(anchor);
 	}
       } catch {
-	console.log('Invalid URL', anchor.href);
+	console.log('Invalid URL', SelectionLinkExtractor.linkURL(anchor));
       }
     }
     if (this.debug) { console.log('Done processing fragment') }
@@ -39,14 +51,14 @@ export class SelectionLinkExtractor {
   // Cloning a selection (Range.cloneContents) never carries open shadow
   // roots along with their hosts, so this recursion only bears fruit when
   // called on a *live* shadow root (see processShadowHosts below).
-  private collectAnchors(root: DocumentFragment | ShadowRoot): HTMLAnchorElement[] {
-    const anchors = Array.from(root.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+  private collectLinkElements(root: DocumentFragment | ShadowRoot): LinkElement[] {
+    const elements = Array.from(root.querySelectorAll(LINK_ELEMENT_SELECTOR)) as LinkElement[];
     for (const element of root.querySelectorAll('*')) {
       if (element.shadowRoot) {
-	anchors.push(...this.collectAnchors(element.shadowRoot));
+	elements.push(...this.collectLinkElements(element.shadowRoot));
       }
     }
-    return anchors;
+    return elements;
   }
 
   // Shadow trees aren't part of the light DOM that Range.cloneContents()
@@ -151,12 +163,12 @@ export class SelectionLinkExtractor {
     if (node) {
       if (this.debug) { console.log('processing node', node) }
       const element = node instanceof Element ? node as Element : node.parentElement!;
-      // See if we are in an anchor.
-      const result = element.closest('a')
+      // See if we are in a link-bearing element.
+      const result = element.closest(LINK_ELEMENT_SELECTOR)
       if (result != null) {
-	const anchor = result as HTMLAnchorElement;
+	const anchor = result as LinkElement;
 	try {
-	  const url = new URL(anchor.href, window.location.href);
+	  const url = new URL(SelectionLinkExtractor.linkURL(anchor), window.location.href);
 	  console.debug(`Considering ${url.href}`);
 	  if (url.protocol.startsWith('http')) {
 	    console.debug(`Adding ${url.href}`);
@@ -165,7 +177,7 @@ export class SelectionLinkExtractor {
 	    this.anchors.push(anchor);
 	  }
 	} catch {
-	  console.log('Invalid URL', anchor.href);
+	  console.log('Invalid URL', SelectionLinkExtractor.linkURL(anchor));
 	}
       }
       if (this.debug) { console.log('Done processing fragment') }

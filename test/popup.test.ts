@@ -215,6 +215,48 @@ describe('openLinks (Open button)', () => {
   });
 });
 
+describe('openLinks — error handling', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    vi.spyOn(window, 'close').mockImplementation(() => {});
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    browser.tabs.create.mockResolvedValue({ id: 3 });
+    browser.tabs.update.mockResolvedValue({});
+    // groupTabs doesn't catch failures from browser.tabs.group — a
+    // nonexistent numeric tab-group id rejects with a real Chrome error.
+    browser.tabs.group.mockRejectedValue(new Error('No group with id: 12345.'));
+    await import('../src/popup/index.ts');
+    (document.querySelector('input[name="select-links"]') as HTMLInputElement).checked = true;
+    (document.getElementById('new-window-checkbox') as HTMLInputElement).checked = false;
+    (document.getElementById('tab-group-name') as HTMLInputElement).value = '12345';
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('shows a friendly title with the underlying error as the subtitle', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(document.getElementById('error')!.innerText).toBe('Unable to open links');
+    expect(document.getElementById('error_sub')!.innerText).toBe('No group with id: 12345.');
+  });
+
+  test('does not close the popup', async () => {
+    document.getElementById('open-button')!.click();
+    await flushPromises();
+    expect(window.close).not.toHaveBeenCalled();
+  });
+});
+
 describe('filterRows', () => {
   const triggerFilter = (text: string) => {
     const div = document.getElementById('filter')!;
@@ -292,6 +334,39 @@ describe('filterRows', () => {
     for (const row of document.querySelectorAll('div.row')) {
       expect(row.classList.contains('invisible')).toBe(false);
     }
+  });
+});
+
+describe('body keypress redirect to filter', () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(['http://a.example/'], ['A']);
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('keystrokes typed elsewhere move focus to the filter without throwing', () => {
+    const filter = document.getElementById('filter')!;
+    const otherElement = document.getElementById('open-button')!;
+    const event = new KeyboardEvent('keypress', { key: 'a', bubbles: true, cancelable: true });
+    expect(() => otherElement.dispatchEvent(event)).not.toThrow();
+    expect(document.activeElement).toBe(filter);
+  });
+
+  test('keystrokes typed directly into the filter do not throw', () => {
+    const filter = document.getElementById('filter')!;
+    const event = new KeyboardEvent('keypress', { key: 'a', bubbles: true, cancelable: true });
+    expect(() => filter.dispatchEvent(event)).not.toThrow();
   });
 });
 
@@ -552,5 +627,92 @@ describe('addLinkCheckboxes with duplicate URLs', () => {
     expect(rows[0].classList.contains('invisible')).toBe(false); // A1: original, shown
     expect(rows[1].classList.contains('invisible')).toBe(true);  // A2: duplicate, hidden
     expect(rows[2].classList.contains('invisible')).toBe(false); // B: unique, shown
+  });
+});
+
+describe('keyboard navigation', () => {
+  const pressKey = (key: string, target: Element = document.body) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = POPUP_HTML;
+    document.head.innerHTML = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+    setupBrowserMocks(
+      ['http://a.example/', 'http://b.example/', 'http://c.example/'],
+      ['A', 'B', 'C'],
+    );
+    await import('../src/popup/index.ts');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('ArrowDown moves focus onto the first row, then the next', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[0]);
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[1]);
+  });
+
+  test('ArrowUp moves focus to the previous row', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowDown');
+    pressKey('ArrowDown');
+    pressKey('ArrowUp');
+    expect(document.activeElement).toBe(rows[0]);
+  });
+
+  test('ArrowUp/ArrowDown clamp at the first/last row', () => {
+    const rows = document.querySelectorAll('div.row');
+    pressKey('ArrowUp'); // already before the first row; clamps to the first
+    expect(document.activeElement).toBe(rows[0]);
+    pressKey('ArrowDown');
+    pressKey('ArrowDown');
+    pressKey('ArrowDown'); // past the last row; clamps to the last
+    expect(document.activeElement).toBe(rows[2]);
+  });
+
+  test('Space toggles the focused row\'s checkbox', () => {
+    const checkbox = document.querySelector('input[name="select-links"]') as HTMLInputElement;
+    pressKey('ArrowDown');
+    pressKey(' ');
+    expect(checkbox.checked).toBe(true);
+    pressKey(' ');
+    expect(checkbox.checked).toBe(false);
+  });
+
+  test('Space does nothing when no row is focused (e.g. the filter has focus)', () => {
+    const filter = document.getElementById('filter')!;
+    filter.focus();
+    const event = pressKey(' ', filter);
+    for (const cb of document.querySelectorAll<HTMLInputElement>('input[name="select-links"]')) {
+      expect(cb.checked).toBe(false);
+    }
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  test('ArrowDown skips rows hidden by the filter', () => {
+    const filterDiv = document.getElementById('filter')!;
+    (filterDiv as any).innerText = 'B';
+    filterDiv.dispatchEvent(new Event('input'));
+
+    const rows = document.querySelectorAll('div.row');
+    expect(rows[1].classList.contains('invisible')).toBe(false);
+    expect(rows[0].classList.contains('invisible')).toBe(true);
+    expect(rows[2].classList.contains('invisible')).toBe(true);
+
+    pressKey('ArrowDown');
+    expect(document.activeElement).toBe(rows[1]);
   });
 });

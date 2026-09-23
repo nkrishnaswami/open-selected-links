@@ -1,3 +1,37 @@
+# Next version
+* Fix a crash in the popup's link filter when a regex match ended at the very
+  last character of the link list
+  * `highlightRegex` dereferenced a possibly-null `TreeWalker` node after
+    walking off the end of the text, throwing and aborting highlighting of
+    any earlier matches in the same filter pass
+  * Also fixes a related off-by-one that could wrap a spurious empty
+    highlight span around the start of the next text node when a match
+    landed exactly on a node boundary
+* Fix a console error on every keystroke in the popup
+  * The "type anywhere to jump into the filter" handler redispatched the
+    same (already-dispatching) keypress event onto the filter, which is a
+    DOM-spec violation and always threw `InvalidStateError`
+  * Moving focus to the filter while the native keypress is still bubbling
+    was already enough for the browser to deliver the character there;
+    the redispatch was unnecessary as well as broken
+* Show a friendly message when opening links fails
+  * The popup's Open button showed the raw `Error` object's default string
+    (e.g. `Error: No group with id: 12345.`) instead of the curated
+    title/subtitle messaging used everywhere else in the popup
+  * Now shows "Unable to open links" as the title with the underlying
+    error as the subtitle
+* Add keyboard navigation to the popup's link list
+  * ArrowUp/ArrowDown move focus across the currently visible (unfiltered)
+    rows; Space toggles the focused row's checkbox
+  * Focusing a row via the keyboard highlights the corresponding link on
+    the page, matching the existing mouse-hover behavior
+* Extract links from image-map areas and formaction buttons (#24)
+  * `<area href>` inside `<map>` (image maps) and `<button>`/`<input
+    type="submit"|"image">` with a `formaction` attribute are now picked up
+    alongside `<a href>`, in the light DOM, inside open shadow roots, and in
+    the "selection collapsed inside a single link" special case
+  * `<area>` labels fall back to the element's `alt` attribute, since it has
+    no text content of its own
 # Version 1.8.6
 * Show `[empty]` for links with no text, not just missing text (#33)
 * Traverse open shadow roots when extracting links (#34)

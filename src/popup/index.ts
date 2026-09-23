@@ -125,7 +125,7 @@ const openLinks = async (event: Event) => {
     try {
       await makeTabsForLinks([links[0]], options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
     // Open the rest of the links in a a new righthand window
@@ -135,7 +135,7 @@ const openLinks = async (event: Event) => {
     try {
       await makeTabsForLinks(links.slice(1), options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
   } else {
@@ -148,7 +148,7 @@ const openLinks = async (event: Event) => {
       console.log('Making tabs with options:', options)
       await makeTabsForLinks(links, options)
     } catch (e: any) {
-      showError(e)
+      showError('Unable to open links', e?.message ?? String(e))
       throw e
     }
   }
@@ -177,6 +177,7 @@ const addLinkCheckboxes = async (links: string[], labels: string[], session: OSL
     rowElement.addEventListener('mouseout', async () => {
       await session.unhighlight();
     })
+    rowElement.tabIndex = 0;
     formElement.appendChild(rowElement);
 
     const inputElement = document.createElement('input');
@@ -210,6 +211,57 @@ const renderForm = async function(links: string[], labels: string[], session: OS
     return;
   }
   await addLinkCheckboxes(links, labels, session);
+  setupKeyboardNav(session);
+}
+
+// ArrowUp/ArrowDown move a roving focus across visible (non-filtered) rows;
+// Space toggles the focused row's checkbox. Mirrors mouseover/mouseout's
+// session.highlight()/unhighlight() calls for parity with hover.
+const setupKeyboardNav = (session: OSLSession) => {
+  const container = document.getElementById('select-links-div')!;
+
+  const visibleRows = (): HTMLElement[] =>
+    Array.from(container.querySelectorAll<HTMLElement>('div.row:not(.invisible)'));
+
+  document.addEventListener('keydown', async (event) => {
+    if (!container.isConnected) {
+      // A stale listener from a previous render (e.g. a leftover popup
+      // instance); the current render's own listener handles this event.
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== ' ') {
+      return;
+    }
+    const currentRow = (document.activeElement as HTMLElement | null)?.closest?.('div.row') as HTMLElement | null;
+
+    if (event.key === ' ') {
+      // Only steal Space when a row (not e.g. the filter) has focus, so
+      // typing a space into the filter keeps working normally.
+      if (!currentRow) return;
+      event.preventDefault();
+      const checkbox = currentRow.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+      checkbox.checked = !checkbox.checked;
+      return;
+    }
+
+    const rows = visibleRows();
+    if (rows.length === 0) return;
+    event.preventDefault();
+    const currentIdx = currentRow ? rows.indexOf(currentRow) : -1;
+    const nextIdx = event.key === 'ArrowDown'
+      ? Math.min(currentIdx + 1, rows.length - 1)
+      : Math.max(currentIdx - 1, 0);
+    const target = rows[nextIdx];
+    target.focus();
+    const allRows = Array.from(container.querySelectorAll('div.row'));
+    await session.highlight(allRows.indexOf(target));
+  });
+
+  container.addEventListener('focusout', async (event: FocusEvent) => {
+    if (!container.contains(event.relatedTarget as Node)) {
+      await session.unhighlight();
+    }
+  });
 }
 
 const highlightRegex = function(root: Element, regex: RegExp) {
@@ -245,7 +297,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
     );
 
     // Highlight subspans till the end of the match
-    while (node && curIndex <= endIndex) {
+    while (node && curIndex < endIndex) {
       const text = node.nodeValue!;
       console.log(
         `Looking for match end ${endIndex} in node (${curIndex}, ${curIndex + text.length})`,
@@ -276,7 +328,7 @@ const highlightRegex = function(root: Element, regex: RegExp) {
       curIndex += text.length;
       nodeMatchStart = 0;
       node = nextNode! as Element;
-      console.log('Next node is', node.nodeValue);
+      console.log('Next node is', node?.nodeValue);
     }
   }
 }
@@ -348,9 +400,14 @@ const setupFilter = function() {
       event.preventDefault();
     }
   });
-  document.body.addEventListener('keypress', (event) => {
+  document.body.addEventListener('keypress', () => {
+    // Moving focus synchronously, while the native keypress is still
+    // bubbling, is enough for the browser to insert the character being
+    // typed into the (newly focused) filter itself — no redispatch needed.
+    // (Redispatching the same event further throws: it's a DOM-spec
+    // violation to dispatch an event that's already mid-dispatch,
+    // regardless of which element originated it.)
     filterInput.focus();
-    filterInput.dispatchEvent(event);
   });
 }
 
@@ -471,7 +528,6 @@ const main = async () => {
     err.msg = 'Permissions problem';
     err.sub = 'These can be transient; try again soon';
     const session = new OSLSession(tabId);
-    await session.setup();
 
     err.msg = 'Error retrieving links';
     err.sub = '';
