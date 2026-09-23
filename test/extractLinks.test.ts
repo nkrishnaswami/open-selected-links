@@ -153,7 +153,7 @@ test('setup: gives up and proceeds anyway if the content script never becomes re
   };
   const session = new OSLSession(1);
   browser.tabs.sendMessage.mockReset();
-  browser.tabs.sendMessage.mockImplementation(async (_t, m) => {
+  browser.tabs.sendMessage.mockImplementation(async () => {
     throw new Error('Could not establish connection. Receiving end does not exist.');
   });
 
