@@ -528,7 +528,6 @@ const main = async () => {
     err.msg = 'Permissions problem';
     err.sub = 'These can be transient; try again soon';
     const session = new OSLSession(tabId);
-    await session.setup();
 
     err.msg = 'Error retrieving links';
     err.sub = '';
