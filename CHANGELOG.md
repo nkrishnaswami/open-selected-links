@@ -1,4 +1,5 @@
 # Next version
+# Version 1.8.7
 * Fix links silently not opening on a freshly loaded page (#38)
   * The injected content script is a lightweight loader that kicks off an
     async import of the real module and returns immediately, so its message
