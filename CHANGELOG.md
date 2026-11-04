@@ -1,4 +1,7 @@
 # Next version
+# Version 1.8.8
+* Fix shadow-root behavior and fall back to aria-label as well as title and
+  alt text when link text content not available. (#39)
 # Version 1.8.7
 * Fix links silently not opening on a freshly loaded page (#38)
   * The injected content script is a lightweight loader that kicks off an
