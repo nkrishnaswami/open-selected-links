@@ -29,6 +29,34 @@ export class SelectionLinkExtractor {
     return (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) ? el.formAction : el.href;
   }
 
+  // Web-component tiles (e.g. archive.org search results) often wrap a
+  // custom element inside the <a>, rendering the visible title in that
+  // element's shadow root, so the anchor's own textContent is blank; such
+  // links usually carry their accessible name in aria-label or title instead.
+  private static linkLabel(el: LinkElement): string {
+    return el.textContent?.trim()
+      || el.getAttribute('aria-label')?.trim()
+      || el.getAttribute('title')?.trim()
+      || el.getAttribute('alt')?.trim()
+      || '[empty]';
+  }
+
+  // The spec's getComposedRanges() takes a {shadowRoots} dictionary, but
+  // Firefox ESR 140 (behind dom.shadowdom.selection_across_boundary.enabled)
+  // implements an earlier draft taking the roots as variadic arguments, and
+  // throws a TypeError on the dictionary form. That TypeError can come from
+  // another realm (e.g. Firefox's content-script sandbox), so check its name
+  // rather than using instanceof.
+  private static composedRanges(selection: Selection, shadowRoots: ShadowRoot[]): StaticRange[] {
+    try {
+      return selection.getComposedRanges({ shadowRoots });
+    } catch (e) {
+      if ((e as Error)?.name !== 'TypeError') throw e;
+      return (selection.getComposedRanges as unknown as (...roots: ShadowRoot[]) => StaticRange[])
+        .apply(selection, shadowRoots);
+    }
+  }
+
   processFragment(documentFragment: DocumentFragment) {
     const base = document.head.querySelector('base');
     const baseURL = base ? base.href : window.location.href;
@@ -38,7 +66,7 @@ export class SelectionLinkExtractor {
 	if (url.protocol.startsWith('http')) {
 	  this.links.push(url.href);
 	  if (this.debug) { console.log('anchor:', anchor) };
-	  this.labels.push(anchor.textContent?.trim() || anchor.getAttribute('alt')?.trim() || '[empty]');
+	  this.labels.push(SelectionLinkExtractor.linkLabel(anchor));
 	  this.anchors.push(anchor);
 	}
       } catch {
@@ -92,7 +120,7 @@ export class SelectionLinkExtractor {
     if (typeof selection.getComposedRanges !== 'function') return;
     const shadowRoots = this.findAllShadowRoots(document.body);
     if (shadowRoots.length === 0) return;
-    for (const composed of selection.getComposedRanges({ shadowRoots })) {
+    for (const composed of SelectionLinkExtractor.composedRanges(selection, shadowRoots)) {
       const sharedRoot = SelectionLinkExtractor.findSharedRoot(composed.startContainer, composed.endContainer);
       // No shared shadow root: either plain light DOM (already handled above)
       // or the selection crosses sibling shadow trees with no common one.

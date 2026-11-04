@@ -474,6 +474,91 @@ test('processSelection: recovers a selection spanning sibling shadow hosts under
   expect(extractor.labels).toEqual(['Tile 1', 'Tile 2', 'Tile 3']);
 });
 
+// Mirrors archive.org's search results: each <tile-dispatcher> shadow root holds
+// an <a aria-label="..."> wrapping an <item-tile> custom element whose own
+// shadow root renders the visible title, leaving the anchor's textContent blank.
+function buildArchiveOrgTiles(titles: string[]): ShadowRoot[] {
+  window.location.href = 'http://localhost/';
+  document.body.innerHTML = '<div id="browser"></div>';
+  const browserShadow = document.getElementById('browser')!.attachShadow({ mode: 'open' });
+  browserShadow.innerHTML = titles.map((_, i) => `<div id="tile${i}"></div>`).join('');
+  return titles.map((title, i) => {
+    const tileShadow = browserShadow.getElementById(`tile${i}`)!.attachShadow({ mode: 'open' });
+    tileShadow.innerHTML = `<a class="tile-link" href="/details/item${i}" aria-label="${title}">
+        <div class="item-tile"></div>
+      </a>`;
+    tileShadow.querySelector('.item-tile')!.attachShadow({ mode: 'open' }).innerHTML =
+      `<div class="title">${title}</div>`;
+    return tileShadow;
+  });
+}
+
+test('processSelection: tile links whose title lives in a nested shadow root use aria-label', () => {
+  const tileShadows = buildArchiveOrgTiles(['TEST - APOLLO 11', 'Apollo 11 footage']);
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  (selection as any).getComposedRanges = () => [{
+    startContainer: tileShadows[0],
+    startOffset: 0,
+    endContainer: tileShadows[1],
+    endOffset: tileShadows[1].childNodes.length,
+  }];
+
+  extractor.processSelection();
+  expect(extractor.links).toEqual([
+    'http://localhost/details/item0',
+    'http://localhost/details/item1',
+  ]);
+  expect(extractor.labels).toEqual(['TEST - APOLLO 11', 'Apollo 11 footage']);
+});
+
+test('processFragment: blank link text falls back to title attribute', () => {
+  window.location.href = 'http://localhost/';
+  const extractor = new SelectionLinkExtractor();
+  const fragment = document.createDocumentFragment();
+  const a = document.createElement('a');
+  a.href = 'http://x/';
+  a.title = 'Titled link';
+  a.innerHTML = '<img src="something.jpg">';
+  fragment.appendChild(a);
+  extractor.processFragment(fragment);
+  expect(extractor.labels).toEqual(['Titled link']);
+});
+
+test('processSelection: falls back to variadic getComposedRanges when the dictionary form throws', () => {
+  // Firefox ESR 140 (with dom.shadowdom.selection_across_boundary.enabled)
+  // implements the older getComposedRanges(...shadowRoots) signature.
+  const tileShadows = buildArchiveOrgTiles(['One', 'Two']);
+  const extractor = new SelectionLinkExtractor();
+  const selection = document.getSelection()!;
+  selection.collapse(document.body, 1);
+  const calls: unknown[][] = [];
+  (selection as any).getComposedRanges = (...args: unknown[]) => {
+    calls.push(args);
+    if (!(args[0] instanceof ShadowRoot)) {
+      // Simulate a TypeError from another realm (as Firefox's content-script
+      // sandbox produces), which fails `instanceof TypeError`.
+      throw Object.assign(new Error('Selection.getComposedRanges: Argument 1 does not implement interface ShadowRoot.'), { name: 'TypeError' });
+    }
+    return [{
+      startContainer: tileShadows[0],
+      startOffset: 0,
+      endContainer: tileShadows[1],
+      endOffset: tileShadows[1].childNodes.length,
+    }];
+  };
+
+  extractor.processSelection();
+  expect(calls).toHaveLength(2);
+  expect(calls[1].length).toBeGreaterThan(1);
+  expect(extractor.links).toEqual([
+    'http://localhost/details/item0',
+    'http://localhost/details/item1',
+  ]);
+  expect(extractor.labels).toEqual(['One', 'Two']);
+});
+
 test('processSelection: getComposedRanges spanning disconnected shadow trees is skipped, not thrown', () => {
   window.location.href = 'http://localhost/';
   document.body.innerHTML = '<div id="host"></div>';
